@@ -41,3 +41,5 @@ wget -O data/exchange_rate.txt https://sembrik.s3.eu-west-2.amazonaws.com/sw6/ex
 chmod +x stock-gpu.sh 
 ./stock-gpu.sh
 ```
+## Example on output from training
+![Training done](donetraining.PNG)
