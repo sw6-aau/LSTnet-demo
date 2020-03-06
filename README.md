@@ -15,4 +15,35 @@ We give the examples to run different datasets in ele.sh, traffic.sh, solar.sh a
 
 Python 2.7 and Pytorch 0.3.0
 
+## Docker Container Very Guided Guide for plebs
+```
+CPU VERSION
 
+docker pull ufoym/deepo:all-py27-cpu
+docker run -it ufoym/deepo:all-py27-cpu
+cd /home/
+git clone https://github.com/sw6-aau/LSTnet-demo.git
+cd LSTnet-demo
+mkdir log/ save/ data/
+cd data
+wget https://sembrik.s3.eu-west-2.amazonaws.com/sw6/electricity.txt
+cd ..
+chmod +x ele.sh
+./ele.sh
+
+GPU VERSION
+
+docker pull ufoym/deepo:all-py27-cu90
+docker run -it ufoym/deepo:all-py27-cu90
+cd /home/
+git clone https://github.com/sw6-aau/LSTnet-demo.git
+cd LSTnet-demo
+mkdir log/ save/ data/
+cd data
+wget https://sembrik.s3.eu-west-2.amazonaws.com/sw6/electricity.txt
+cd ..
+chmod +x ele.sh 
+(( add tag : --gpu 3 to ele.sh))
+./ele.sh
+
+```
