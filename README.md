@@ -25,11 +25,9 @@ cd /home/
 git clone https://github.com/sw6-aau/LSTnet-demo.git
 cd LSTnet-demo
 mkdir log/ save/ data/
-cd data
-wget https://sembrik.s3.eu-west-2.amazonaws.com/sw6/electricity.txt
-cd ..
-chmod +x ele.sh
-./ele.sh
+wget -O data/exchange_rate.txt https://sembrik.s3.eu-west-2.amazonaws.com/sw6/exchange_rate.txt
+chmod +x stock-cpu.sh 
+./stock-cpu.sh
 
 GPU VERSION
 
@@ -39,11 +37,7 @@ cd /home/
 git clone https://github.com/sw6-aau/LSTnet-demo.git
 cd LSTnet-demo
 mkdir log/ save/ data/
-cd data
-wget https://sembrik.s3.eu-west-2.amazonaws.com/sw6/electricity.txt
-cd ..
-chmod +x ele.sh 
-(( add tag : --gpu 3 to ele.sh))
-./ele.sh
-
+wget -O data/exchange_rate.txt https://sembrik.s3.eu-west-2.amazonaws.com/sw6/exchange_rate.txt
+chmod +x stock-gpu.sh 
+./stock-gpu.sh
 ```
