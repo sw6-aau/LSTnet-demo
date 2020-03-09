@@ -78,7 +78,7 @@ parser.add_argument('--highway_window', type=int, default=24,
                     help='The window size of the highway component')
 parser.add_argument('--clip', type=float, default=10.,
                     help='gradient clipping')
-parser.add_argument('--epochs', type=int, default=1,
+parser.add_argument('--epochs', type=int, default=10,
                     help='upper epoch limit')
 parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                     help='batch size')
