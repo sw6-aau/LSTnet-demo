@@ -21,6 +21,8 @@ CPU VERSION
 
 docker pull ufoym/deepo:all-py27-cpu
 docker run -it ufoym/deepo:all-py27-cpu
+or with vilume mounting : 
+docker run -it -v Q:\git\LSTnet-demo\:/home/ ufoym/deepo:all-py27-cpu
 cd /home/
 git clone https://github.com/sw6-aau/LSTnet-demo.git
 cd LSTnet-demo
