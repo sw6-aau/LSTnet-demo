@@ -150,7 +150,7 @@ def tuned_train(config):
     optim = Optim.Optim(
         model.parameters(), args.optim, lr=config["lr"], args.clip #
     )
-    for epoch in range(1, args.epochs+1)
+    for epoch in range(1, 10)
         train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
 
 search_space = {
