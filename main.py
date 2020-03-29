@@ -8,10 +8,13 @@ from models import LSTNet
 import numpy as np;
 import importlib
 
-from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
+from ray import tune
+from ray.tune import track
+from ray.schedulers import ASHAScheduler
 
 from utils import *;
 import Optim
+import numpy as np
 
 def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
     model.eval();
@@ -104,58 +107,69 @@ parser.add_argument('--normalize', type=int, default=2)
 parser.add_argument('--output_fun', type=str, default='sigmoid')
 args = parser.parse_args()
 
-args.cuda = args.gpu is not None
-if args.cuda:
-    torch.cuda.set_device(args.gpu)
-# Set the random seed manually for reproducibility.
-torch.manual_seed(args.seed)
-if torch.cuda.is_available():
-    if not args.cuda:
-        print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+# Tunes hyperparameters and trains the model
+def tuned_train(config):
+    #Bunch of setup stuff below
+    #Don't bother if you just want to do HP-tuning
+    args.cuda = args.gpu is not None
+    if args.cuda:
+        torch.cuda.set_device(args.gpu)
+    # Set the random seed manually for reproducibility.
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        if not args.cuda:
+            print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+        else:
+            torch.cuda.manual_seed(args.seed)
+
+    Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize);
+    print(Data.rse);
+
+    model = eval(args.model).Model(args, Data);
+
+    if args.cuda:
+        model.cuda()
+        
+    nParams = sum([p.nelement() for p in model.parameters()])
+    print('* number of parameters: %d' % nParams)
+
+    if args.L1Loss:
+        criterion = nn.L1Loss(size_average=False);
     else:
-        torch.cuda.manual_seed(args.seed)
+        criterion = nn.MSELoss(size_average=False);
+    evaluateL2 = nn.MSELoss(size_average=False);
+    evaluateL1 = nn.L1Loss(size_average=False)
+    if args.cuda:
+        criterion = criterion.cuda()
+        evaluateL1 = evaluateL1.cuda();
+        evaluateL2 = evaluateL2.cuda();
+        
+    best_val = 10000000;
 
-Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize);
-print(Data.rse);
+    #Real HP-tuning hours below
+    optim = Optim.Optim(
+        model.parameters(), args.optim, lr=config["lr"], args.clip #
+    )
+    for epoch in range(1, args.epoch+1)
+        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
 
-model = eval(args.model).Model(args, Data);
+search_space = {
+    "lr": tune.sample_from(lambda spec: 10**(-10 * np.random.rand()))
+}
 
-if args.cuda:
-    model.cuda()
-    
-nParams = sum([p.nelement() for p in model.parameters()])
-print('* number of parameters: %d' % nParams)
+#Uncomment this to limit cores/gpu utilization
+#ray.init(num_cpus=<int>, num_gpus=<int>)
 
-if args.L1Loss:
-    criterion = nn.L1Loss(size_average=False);
-else:
-    criterion = nn.MSELoss(size_average=False);
-evaluateL2 = nn.MSELoss(size_average=False);
-evaluateL1 = nn.L1Loss(size_average=False)
-if args.cuda:
-    criterion = criterion.cuda()
-    evaluateL1 = evaluateL1.cuda();
-    evaluateL2 = evaluateL2.cuda();
-    
-    
-best_val = 10000000;
-optim = Optim.Optim(
-    model.parameters(), args.optim, args.lr, args.clip,
-)
+analysis = tune.run(tuned_train, config=search_space)
 
+''' Old training code below
 # At any point you can hit Ctrl + C to break out of training early.
 try:
     print('begin training');
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         trials = Trials()
-        train_loss = fmin(
-            fn=train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size), 
-            space=hp.uniform('x', -10, 10),
-            algo=tpe.suggest,
-            max_evals=100,
-            trials=trials
-            )
+        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
         print(train_loss)
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
         print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
@@ -172,6 +186,7 @@ try:
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')
+'''
 
 # Load the best saved model.
 with open(args.save, 'rb+') as f:
