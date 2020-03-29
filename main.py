@@ -148,7 +148,7 @@ def tuned_train(config):
 
     #Real HP-tuning hours below
     optim = Optim.Optim(
-        model.parameters(), args.optim, lr=config["lr"], args.clip
+        model.parameters(), args.optim, config["lr"], args.clip
     )
 
     for i in range(1, args.epochs+1):
