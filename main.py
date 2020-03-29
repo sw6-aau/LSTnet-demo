@@ -61,7 +61,7 @@ def train(data, X, Y, model, criterion, optim, batch_size):
         grad_norm = optim.step();
         total_loss += loss.data;
         n_samples += (output.size(0) * data.m);
-    return {'loss': total_loss / n_samples, 'status': STATUS_OK}
+    return {'loss': total_loss / n_samples, 'status': STATUS_OK }
     
 parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
 parser.add_argument('--data', type=str, required=True,
@@ -148,7 +148,15 @@ try:
     print('begin training');
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        train_loss = fmin(fn=train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size), space=hp.uniform('x', -10, 10), algo=tpe.suggest, max_evals=100)
+        trials = Trials()
+        train_loss = fmin(
+            fn=train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size), 
+            space=hp.uniform('x', -10, 10),
+            algo=tpe.suggest,
+            max_evals=100,
+            trials=trials
+            )
+        print(train_loss)
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
         print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
         # Save the model if the validation loss is the best we've seen so far.
