@@ -8,7 +8,7 @@ from models import LSTNet
 import numpy as np;
 import importlib
 
-from hyperopt import fmin, tpe, hp, STATUS_OK
+from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 
 from utils import *;
 import Optim
