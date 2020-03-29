@@ -148,12 +148,7 @@ try:
     print('begin training');
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        train_loss = fmin(
-            fn=train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size), 
-            space=hp.uniform('x', -10, 10),
-            algo=tpe.suggest,
-            max_evals=100
-            )
+        train_loss = fmin(fn=train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size), space=hp.uniform('x', -10, 10), algo=tpe.suggest, max_evals=100)
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
         print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
         # Save the model if the validation loss is the best we've seen so far.
