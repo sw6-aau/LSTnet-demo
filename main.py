@@ -148,9 +148,10 @@ def tuned_train(config):
 
     #Real HP-tuning hours below
     optim = Optim.Optim(
-        model.parameters(), args.optim, lr=config["lr"], args.clip #
+        model.parameters(), args.optim, lr=config["lr"], args.clip
     )
-    for epoch in range(1, 10)
+
+    for i in range(1, args.epochs+1):
         train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
 
 search_space = {
