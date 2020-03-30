@@ -8,9 +8,13 @@ from models import LSTNet
 import numpy as np;
 import importlib
 
+'''
 from ray import tune
 from ray.tune import track
 from ray.tune.schedulers import ASHAScheduler
+'''
+
+from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 
 from utils import *;
 import Optim
@@ -148,20 +152,42 @@ def tuned_train(config):
 
     #Real HP-tuning hours below
     optim = Optim.Optim(
-        model.parameters(), args.optim, config["lr"], args.clip
+        model.parameters(), args.optim, config, args.clip
     )
 
     for i in range(1, args.epochs+1):
         train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
+        print(train_loss)
+        val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
+        print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
+        # Save the model if the validation loss is the best we've seen so far.
+
+        if val_loss < best_val:
+            with open(args.save, 'wb+') as f:
+                torch.save(model, f)
+            best_val = val_loss
+        if epoch % 5 == 0:
+            test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size);
+            print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
+        return {'loss': best_val, 'status': STATUS_OK}
 
 search_space = {
     "lr": tune.sample_from(lambda spec: 10**(-10 * np.random.rand()))
 }
 
+trials = Trials()
+
+best = fmin(
+    tuned_train,
+    space=hp.uniform('config', -10, 10),
+    algo=tpe.suggest,
+    max_evals=10,
+    trials=trials
+)
+
 #Uncomment this to limit cores/gpu utilization
 #ray.init(num_cpus=<int>, num_gpus=<int>)
-
-analysis = tune.run(tuned_train, scheduler=ASHAScheduler(metric="mean_accuracy", mode="max"), num_samples=1 ,config=search_space)
+#analysis = tune.run(tuned_train, scheduler=ASHAScheduler(metric="mean_accuracy", mode="max"), num_samples=1 ,config=search_space)
 
 ''' Old training code below
 # At any point you can hit Ctrl + C to break out of training early.
@@ -169,7 +195,6 @@ try:
     print('begin training');
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        trials = Trials()
         train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
         print(train_loss)
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
