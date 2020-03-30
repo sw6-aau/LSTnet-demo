@@ -171,10 +171,6 @@ def tuned_train(config):
             print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
         return {'loss': best_val, 'status': STATUS_OK}
 
-search_space = {
-    "lr": tune.sample_from(lambda spec: 10**(-10 * np.random.rand()))
-}
-
 trials = Trials()
 
 best = fmin(
