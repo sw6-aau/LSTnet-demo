@@ -155,7 +155,7 @@ def tuned_train(config):
         model.parameters(), args.optim, config, args.clip
     )
 
-    for i in range(1, args.epochs+1):
+    for epoch in range(1, args.epochs+1):
         train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
         print(train_loss)
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
