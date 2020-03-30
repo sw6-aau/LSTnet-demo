@@ -64,7 +64,7 @@ def train(data, X, Y, model, criterion, optim, batch_size):
         grad_norm = optim.step();
         total_loss += loss.data;
         n_samples += (output.size(0) * data.m);
-    return {'loss': total_loss / n_samples, 'status': STATUS_OK }
+    return total_loss / n_samples
     
 parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
 parser.add_argument('--data', type=str, required=True,
@@ -161,7 +161,7 @@ search_space = {
 #Uncomment this to limit cores/gpu utilization
 #ray.init(num_cpus=<int>, num_gpus=<int>)
 
-analysis = tune.run(tuned_train, scheduler=ASHAScheduler, num_samples=30 ,config=search_space)
+analysis = tune.run(tuned_train, scheduler=ASHAScheduler(metric="mean_accuracy", mode="max"), num_samples=30 ,config=search_space)
 
 ''' Old training code below
 # At any point you can hit Ctrl + C to break out of training early.
