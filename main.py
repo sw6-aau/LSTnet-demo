@@ -161,7 +161,7 @@ search_space = {
 #Uncomment this to limit cores/gpu utilization
 #ray.init(num_cpus=<int>, num_gpus=<int>)
 
-analysis = tune.run(tuned_train, scheduler=ASHAScheduler(metric="mean_accuracy", mode="max"), num_samples=30 ,config=search_space)
+analysis = tune.run(tuned_train, scheduler=ASHAScheduler(metric="mean_accuracy", mode="max"), num_samples=1 ,config=search_space)
 
 ''' Old training code below
 # At any point you can hit Ctrl + C to break out of training early.
