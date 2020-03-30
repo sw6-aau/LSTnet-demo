@@ -10,7 +10,7 @@ import importlib
 
 from ray import tune
 from ray.tune import track
-from ray.schedulers import ASHAScheduler
+from ray.tune.schedulers import ASHAScheduler
 
 from utils import *;
 import Optim
