@@ -184,7 +184,7 @@ best = fmin(
     max_evals=10,
     trials=trials
 )
-
+print(best)
 #Uncomment this to limit cores/gpu utilization
 #ray.init(num_cpus=<int>, num_gpus=<int>)
 #analysis = tune.run(tuned_train, scheduler=ASHAScheduler(metric="mean_accuracy", mode="max"), num_samples=1 ,config=search_space)
