@@ -4,6 +4,8 @@ import time
 
 import torch
 import torch.nn as nn
+import torchvision
+import torchvision.transforms as transforms
 from models import LSTNet
 import numpy as np;
 import importlib
@@ -20,6 +22,8 @@ from utils import *;
 import Optim
 import numpy as np
 
+# Passes the data-set as input to the model in small batches
+# After the data-set has been fully parsed, the output is compared to the original data-set.
 def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
     model.eval();
     total_loss = 0;
@@ -28,6 +32,7 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
     predict = None;
     test = None;
     
+    # Iterates through all the batches as inputs.
     for X, Y in data.get_batches(X, Y, batch_size, False):
         output = model(X);
         if predict is None:
@@ -37,13 +42,17 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
             predict = torch.cat((predict,output));
             test = torch.cat((test, Y));
         
+        # Extra modifications and loss calculation
         scale = data.scale.expand(output.size(0), data.m)
         total_loss += evaluateL2(output * scale, Y * scale).data
         total_loss_l1 += evaluateL1(output * scale, Y * scale).data
         n_samples += (output.size(0) * data.m);
+    
     rse = math.sqrt(total_loss / n_samples)/data.rse
     rae = (total_loss_l1/n_samples)/data.rae
     
+    # Calculates correlation
+    # No clue how it actually achieves it
     predict = predict.data.cpu().numpy();
     Ytest = test.data.cpu().numpy();
     sigma_p = (predict).std(axis = 0);
@@ -195,11 +204,14 @@ try:
         print(train_loss)
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
         print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
+        
         # Save the model if the validation loss is the best we've seen so far.
-
         if val_loss < best_val:
             with open(args.save, 'wb+') as f:
-                torch.save(model, f)
+                torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optim.optimizer.state_dict()
+                }, f)
             best_val = val_loss
         if epoch % 5 == 0:
             test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size);
@@ -212,7 +224,9 @@ except KeyboardInterrupt:
 
 # Load the best saved model.
 with open(args.save, 'rb+') as f:
-    model = torch.load(f)
+    checkpoint = torch.load(f)
+model.load_state_dict(checkpoint['model_state_dict'])
+optim.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size);
 print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
