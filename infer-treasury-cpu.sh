@@ -1,0 +1,1 @@
+python2 prediction.py --data data/ustreasury.txt --save save/ustreasury.pt --hidCNN 50 --hidRNN 50 --L1Loss False --output_fun None
