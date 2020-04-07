@@ -120,51 +120,68 @@ parser.add_argument('--normalize', type=int, default=2)
 parser.add_argument('--output_fun', type=str, default='sigmoid')
 args = parser.parse_args()
 
+args.cuda = args.gpu is not None
+if args.cuda:
+    torch.cuda.set_device(args.gpu)
+# Set the random seed manually for reproducibility.
+torch.manual_seed(args.seed)
+if torch.cuda.is_available():
+    if not args.cuda:
+        print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+    else:
+        torch.cuda.manual_seed(args.seed)
+
+Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize);
+print(Data.rse);
+
+
+if args.L1Loss:
+    criterion = nn.L1Loss(size_average=False);
+else:
+    criterion = nn.MSELoss(size_average=False);
+evaluateL2 = nn.MSELoss(size_average=False);
+evaluateL1 = nn.L1Loss(size_average=False)
+if args.cuda:
+    criterion = criterion.cuda()
+    evaluateL1 = evaluateL1.cuda();
+    evaluateL2 = evaluateL2.cuda();
+    
 # Tunes hyperparameters and trains the model
-def tuned_train(config):
-    #Bunch of setup stuff below
-    #Don't bother if you just want to do HP-tuning
-    args.cuda = args.gpu is not None
-    if args.cuda:
-        torch.cuda.set_device(args.gpu)
-    # Set the random seed manually for reproducibility.
-    torch.manual_seed(args.seed)
-    if torch.cuda.is_available():
-        if not args.cuda:
-            print("WARNING: You have a CUDA device, so you should probably run with --cuda")
-        else:
-            torch.cuda.manual_seed(args.seed)
+def tuned_train(tuning):
 
-    Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize);
-    print(Data.rse);
+    cnn = args.hidCNN
+    rnn = args.hidRNN
+    skip = args.hidSkip
+    hyper_epoch = args.epochs
 
-    model = eval(args.model).Model(args, Data);
-
-    if args.cuda:
-        model.cuda()
+    case, val = tuning
+    val = int(val)
+    if case == 'case 1':
+        cnn = val
+    elif case == 'case 2':
+        rnn = val
+    elif case == 'case 3':
+        skip = val
+    elif case == 'case 4':
+        hyper_epoch = val
         
+    model = eval(args.model).Model(args, Data, cnn, rnn, skip);
+
     nParams = sum([p.nelement() for p in model.parameters()])
     print('* number of parameters: %d' % nParams)
 
-    if args.L1Loss:
-        criterion = nn.L1Loss(size_average=False);
-    else:
-        criterion = nn.MSELoss(size_average=False);
-    evaluateL2 = nn.MSELoss(size_average=False);
-    evaluateL1 = nn.L1Loss(size_average=False)
     if args.cuda:
-        criterion = criterion.cuda()
-        evaluateL1 = evaluateL1.cuda();
-        evaluateL2 = evaluateL2.cuda();
+        model.cuda()
         
     best_val = 10000000;
 
     #Real HP-tuning hours below
     optim = Optim.Optim(
-        model.parameters(), args.optim, config, args.clip
+        model.parameters(), args.optim, args.lr, args.clip
     )
 
-    for epoch in range(1, args.epochs+1):
+    for epoch in range(1, hyper_epoch + 1):
+        epoch_start_time = time.time()
         train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
         print(train_loss)
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
@@ -178,21 +195,32 @@ def tuned_train(config):
         if epoch % 5 == 0:
             test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size);
             print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
-        return {'loss': best_val, 'status': STATUS_OK}
+    
+    # Load the best saved model.
+    with open(args.save, 'rb+') as f:
+        model = torch.load(f)
+    test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size);
+    print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
+
+    return {'loss': best_val, 'status': STATUS_OK}
 
 trials = Trials()
 
+space = hp.choice('classifier',[
+    ('case 1', hp.uniform('cnn', 30, 200)),
+    ('case 2', hp.uniform('rnn', 30, 200)),
+    ('case 3', hp.uniform('skip', 2, 10)),
+    ('case 4', hp.uniform('epoch', 10, 100))
+])
+
 best = fmin(
     tuned_train,
-    space=hp.uniform('config', -10, 10),
+    space=space,
     algo=tpe.suggest,
-    max_evals=10,
+    max_evals=100,
     trials=trials
 )
 print(best)
-#Uncomment this to limit cores/gpu utilization
-#ray.init(num_cpus=<int>, num_gpus=<int>)
-#analysis = tune.run(tuned_train, scheduler=ASHAScheduler(metric="mean_accuracy", mode="max"), num_samples=1 ,config=search_space)
 
 ''' Old training code below
 # At any point you can hit Ctrl + C to break out of training early.
@@ -222,11 +250,5 @@ except KeyboardInterrupt:
     print('Exiting from training early')
 '''
 
-# Load the best saved model.
-with open(args.save, 'rb+') as f:
-    checkpoint = torch.load(f)
-model.load_state_dict(checkpoint['model_state_dict'])
-optim.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size);
-print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
+
 

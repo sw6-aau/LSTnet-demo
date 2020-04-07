@@ -3,14 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Model(nn.Module):
-    def __init__(self, args, data):
+    def __init__(self, args, data, cnn, rnn, skip):
         super(Model, self).__init__()
         self.use_cuda = args.cuda
         self.P = args.window;
         self.m = data.m
-        self.hidR = args.hidRNN;
-        self.hidC = args.hidCNN;
-        self.hidS = args.hidSkip;
+        self.hidR = rnn;
+        self.hidC = cnn;
+        self.hidS = skip;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
         self.pt = (self.P - self.Ck)/self.skip
