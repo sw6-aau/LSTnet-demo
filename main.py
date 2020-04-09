@@ -10,245 +10,247 @@ from models import LSTNet
 import numpy as np;
 import importlib
 
-'''
-from ray import tune
-from ray.tune import track
-from ray.tune.schedulers import ASHAScheduler
-'''
-
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
 
 from utils import *;
 import Optim
 import numpy as np
 
-# Passes the data-set as input to the model in small batches
-# After the data-set has been fully parsed, the output is compared to the original data-set.
-def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
-    model.eval();
-    total_loss = 0;
-    total_loss_l1 = 0;
-    n_samples = 0;
-    predict = None;
-    test = None;
-    
-    # Iterates through all the batches as inputs.
-    for X, Y in data.get_batches(X, Y, batch_size, False):
-        output = model(X);
-        if predict is None:
-            predict = output;
-            test = Y;
+
+class Trainer:
+    def __init__(self):
+        # Initial setup
+        self.parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
+        self.set_args()
+        self.args = self.parser.parse_args()
+        self.args.cuda = self.args.gpu is not None
+        if self.args.cuda:
+            torch.cuda.set_device(self.args.gpu)
+        # Set the random seed manually for reproducibility.
+        torch.manual_seed(self.args.seed)
+        if torch.cuda.is_available():
+            if not self.args.cuda:
+                print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+            else:
+                torch.cuda.manual_seed(self.args.seed)
+
+        self.Data = Data_utility(self.args.data, 0.6, 0.2, self.args.cuda, self.args.horizon, self.args.window, self.args.normalize);
+        print(self.Data.rse);
+
+
+        if self.args.L1Loss:
+            self.criterion = nn.L1Loss(size_average=False);
         else:
-            predict = torch.cat((predict,output));
-            test = torch.cat((test, Y));
+            self.criterion = nn.MSELoss(size_average=False);
+        self.evaluateL2 = nn.MSELoss(size_average=False);
+        self.evaluateL1 = nn.L1Loss(size_average=False)
+        if self.args.cuda:
+            self.criterion = self.criterion.cuda()
+            self.evaluateL1 = self.evaluateL1.cuda();
+            self.evaluateL2 = self.evaluateL2.cuda();
+
+        # Define initial parameter values
+        self.hyper_epoch = self.args.epochs
+        self.cnn = self.args.hidCNN
+        self.rnn = self.args.hidRNN
+        self.skip = self.args.hidSkip
+
+        # Define spaces for hypertuning
+        case0 = hp.uniform('epoch', 1, 2)
+        case1 = hp.uniform('cnn', 30, 2000)
+        case2 = hp.uniform('rnn', 30, 2000)
+        case3 = hp.uniform('skip', 2, 50)
+        cases = [case0, case1, case2, case3]
+        self.active = ''
+
+        # Tune each parameter one by one
+        for x in range(0,4):
+            if x == 0:
+                self.active = 'epoch'
+            elif x == 1:
+                self.active = 'cnn'
+            elif x == 2:
+                self.active = 'rnn'
+            elif x == 3:
+                self.active = 'skip'
+
+            best = self.tune(cases[x])
+            print(best)
+
+            if x == 0:
+                self.hyper_epoch = int(best['epoch'])
+            elif x == 1:
+                self.cnn = int(best['cnn'])
+            elif x == 2:
+                self.rnn = int(best['rnn'])
+            elif x == 3:
+                self.skip = int(best['skip'])
+
+
+
+
+    # Passes the data-set as input to the model in small batches
+    # After the data-set has been fully parsed, the output is compared to the original data-set.
+    def evaluate(self, data, X, Y, model, evaluateL2, evaluateL1, batch_size):
+        model.eval();
+        total_loss = 0;
+        total_loss_l1 = 0;
+        n_samples = 0;
+        predict = None;
+        test = None;
         
-        # Extra modifications and loss calculation
-        scale = data.scale.expand(output.size(0), data.m)
-        total_loss += evaluateL2(output * scale, Y * scale).data
-        total_loss_l1 += evaluateL1(output * scale, Y * scale).data
-        n_samples += (output.size(0) * data.m);
-    
-    rse = math.sqrt(total_loss / n_samples)/data.rse
-    rae = (total_loss_l1/n_samples)/data.rae
-    
-    # Calculates correlation
-    # No clue how it actually achieves it
-    predict = predict.data.cpu().numpy();
-    Ytest = test.data.cpu().numpy();
-    sigma_p = (predict).std(axis = 0);
-    sigma_g = (Ytest).std(axis = 0);
-    mean_p = predict.mean(axis = 0)
-    mean_g = Ytest.mean(axis = 0)
-    index = (sigma_g!=0);
-    correlation = ((predict - mean_p) * (Ytest - mean_g)).mean(axis = 0)/(sigma_p * sigma_g);
-    correlation = (correlation[index]).mean();
-    return rse, rae, correlation;
-
-def train(data, X, Y, model, criterion, optim, batch_size):
-    model.train();
-    total_loss = 0;
-    n_samples = 0;
-    for X, Y in data.get_batches(X, Y, batch_size, True):
-        model.zero_grad();
-        output = model(X);
-        scale = data.scale.expand(output.size(0), data.m)
-        loss = criterion(output * scale, Y * scale);
-        loss.backward();
-        grad_norm = optim.step();
-        total_loss += loss.data;
-        n_samples += (output.size(0) * data.m);
-    return total_loss / n_samples
-    
-parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
-parser.add_argument('--data', type=str, required=True,
-                    help='location of the data file')
-parser.add_argument('--model', type=str, default='LSTNet',
-                    help='')
-parser.add_argument('--hidCNN', type=int, default=100,
-                    help='number of CNN hidden units')
-parser.add_argument('--hidRNN', type=int, default=100,
-                    help='number of RNN hidden units')
-parser.add_argument('--window', type=int, default=24 * 7,
-                    help='window size')
-parser.add_argument('--CNN_kernel', type=int, default=6,
-                    help='the kernel size of the CNN layers')
-parser.add_argument('--highway_window', type=int, default=24,
-                    help='The window size of the highway component')
-parser.add_argument('--clip', type=float, default=10.,
-                    help='gradient clipping')
-parser.add_argument('--epochs', type=int, default=10,
-                    help='upper epoch limit')
-parser.add_argument('--batch_size', type=int, default=128, metavar='N',
-                    help='batch size')
-parser.add_argument('--dropout', type=float, default=0.2,
-                    help='dropout applied to layers (0 = no dropout)')
-parser.add_argument('--seed', type=int, default=54321,
-                    help='random seed')
-parser.add_argument('--gpu', type=int, default=None)
-parser.add_argument('--log_interval', type=int, default=2000, metavar='N',
-                    help='report interval')
-parser.add_argument('--save', type=str,  default='model/model.pt',
-                    help='path to save the final model')
-parser.add_argument('--cuda', type=str, default=True)
-parser.add_argument('--optim', type=str, default='adam')
-parser.add_argument('--lr', type=float, default=0.001)
-parser.add_argument('--horizon', type=int, default=12)
-parser.add_argument('--skip', type=float, default=24)
-parser.add_argument('--hidSkip', type=int, default=5)
-parser.add_argument('--L1Loss', type=bool, default=True)
-parser.add_argument('--normalize', type=int, default=2)
-parser.add_argument('--output_fun', type=str, default='sigmoid')
-args = parser.parse_args()
-
-args.cuda = args.gpu is not None
-if args.cuda:
-    torch.cuda.set_device(args.gpu)
-# Set the random seed manually for reproducibility.
-torch.manual_seed(args.seed)
-if torch.cuda.is_available():
-    if not args.cuda:
-        print("WARNING: You have a CUDA device, so you should probably run with --cuda")
-    else:
-        torch.cuda.manual_seed(args.seed)
-
-Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize);
-print(Data.rse);
-
-
-if args.L1Loss:
-    criterion = nn.L1Loss(size_average=False);
-else:
-    criterion = nn.MSELoss(size_average=False);
-evaluateL2 = nn.MSELoss(size_average=False);
-evaluateL1 = nn.L1Loss(size_average=False)
-if args.cuda:
-    criterion = criterion.cuda()
-    evaluateL1 = evaluateL1.cuda();
-    evaluateL2 = evaluateL2.cuda();
-    
-# Tunes hyperparameters and trains the model
-def tuned_train(tuning):
-
-    cnn = args.hidCNN
-    rnn = args.hidRNN
-    skip = args.hidSkip
-    hyper_epoch = args.epochs
-
-    case, val = tuning
-    val = int(val)
-    if case == 'case 1':
-        cnn = val
-    elif case == 'case 2':
-        rnn = val
-    elif case == 'case 3':
-        skip = val
-    elif case == 'case 4':
-        hyper_epoch = val
+        # Iterates through all the batches as inputs.
+        for X, Y in data.get_batches(X, Y, batch_size, False):
+            output = model(X);
+            if predict is None:
+                predict = output;
+                test = Y;
+            else:
+                predict = torch.cat((predict,output));
+                test = torch.cat((test, Y));
+            
+            # Extra modifications and loss calculation
+            scale = data.scale.expand(output.size(0), data.m)
+            total_loss += evaluateL2(output * scale, Y * scale).data
+            total_loss_l1 += evaluateL1(output * scale, Y * scale).data
+            n_samples += (output.size(0) * data.m);
         
-    model = eval(args.model).Model(args, Data, cnn, rnn, skip);
-
-    nParams = sum([p.nelement() for p in model.parameters()])
-    print('* number of parameters: %d' % nParams)
-
-    if args.cuda:
-        model.cuda()
+        rse = math.sqrt(total_loss / n_samples)/data.rse
+        rae = (total_loss_l1/n_samples)/data.rae
         
-    best_val = 10000000;
+        # Calculates correlation
+        # No clue how it actually achieves it
+        predict = predict.data.cpu().numpy();
+        Ytest = test.data.cpu().numpy();
+        sigma_p = (predict).std(axis = 0);
+        sigma_g = (Ytest).std(axis = 0);
+        mean_p = predict.mean(axis = 0)
+        mean_g = Ytest.mean(axis = 0)
+        index = (sigma_g!=0);
+        correlation = ((predict - mean_p) * (Ytest - mean_g)).mean(axis = 0)/(sigma_p * sigma_g);
+        correlation = (correlation[index]).mean();
+        return rse, rae, correlation;
 
-    #Real HP-tuning hours below
-    optim = Optim.Optim(
-        model.parameters(), args.optim, args.lr, args.clip
-    )
-
-    for epoch in range(1, hyper_epoch + 1):
-        epoch_start_time = time.time()
-        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
-        print(train_loss)
-        val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
-        print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
-        # Save the model if the validation loss is the best we've seen so far.
-
-        if val_loss < best_val:
-            with open(args.save, 'wb+') as f:
-                torch.save(model, f)
-            best_val = val_loss
-        if epoch % 5 == 0:
-            test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size);
-            print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
-    
-    # Load the best saved model.
-    with open(args.save, 'rb+') as f:
-        model = torch.load(f)
-    test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size);
-    print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
-
-    return {'loss': best_val, 'status': STATUS_OK}
-
-trials = Trials()
-
-space = hp.choice('classifier',[
-    ('case 1', hp.uniform('cnn', 30, 200)),
-    ('case 2', hp.uniform('rnn', 30, 200)),
-    ('case 3', hp.uniform('skip', 2, 10)),
-    ('case 4', hp.uniform('epoch', 10, 100))
-])
-
-best = fmin(
-    tuned_train,
-    space=space,
-    algo=tpe.suggest,
-    max_evals=100,
-    trials=trials
-)
-print(best)
-
-''' Old training code below
-# At any point you can hit Ctrl + C to break out of training early.
-try:
-    print('begin training');
-    for epoch in range(1, args.epochs+1):
-        epoch_start_time = time.time()
-        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
-        print(train_loss)
-        val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
-        print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
+    def train(self, data, X, Y, model, criterion, optim, batch_size):
+        model.train();
+        total_loss = 0;
+        n_samples = 0;
+        for X, Y in data.get_batches(X, Y, batch_size, True):
+            model.zero_grad();
+            output = model(X);
+            scale = data.scale.expand(output.size(0), data.m)
+            loss = criterion(output * scale, Y * scale);
+            loss.backward();
+            grad_norm = optim.step();
+            total_loss += loss.data;
+            n_samples += (output.size(0) * data.m);
+        return total_loss / n_samples
         
-        # Save the model if the validation loss is the best we've seen so far.
-        if val_loss < best_val:
-            with open(args.save, 'wb+') as f:
-                torch.save({
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optim.optimizer.state_dict()
-                }, f)
-            best_val = val_loss
-        if epoch % 5 == 0:
-            test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size);
-            print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
+    # Tunes hyperparameters and trains the model
+    def tuned_train(self, tuning):
+        # Adjusts hyperparameter to the value for this specific iteration
+        tuning = int(tuning)
+        if self.active == 'epoch':
+            self.hyper_epoch = tuning
+        elif self.active == 'cnn':
+            self.cnn = tuning
+        elif self.active == 'rnn':
+            self.rnn = tuning
+        elif self.active == 'skip':
+            self.skip = tuning
+            
+        # Prepares the model for training
+        model = eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip);
 
-except KeyboardInterrupt:
-    print('-' * 89)
-    print('Exiting from training early')
-'''
+        nParams = sum([p.nelement() for p in model.parameters()])
+        print('* number of parameters: %d' % nParams)
 
+        if self.args.cuda:
+            model.cuda()
+            
+        best_val = 10000000;
 
+        optim = Optim.Optim(
+            model.parameters(), self.args.optim, self.args.lr, self.args.clip
+        )
 
+        # Performs training for a given hypertuning iteration
+        for epoch in range(1, self.hyper_epoch + 1):
+            epoch_start_time = time.time()
+            train_loss = self.train(self.Data, self.Data.train[0], self.Data.train[1], model, self.criterion, optim, self.args.batch_size)
+            print(train_loss)
+            val_loss, val_rae, val_corr = self.evaluate(self.Data, self.Data.valid[0], self.Data.valid[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
+            print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
+            
+            # Save the model if the validation loss is the best we've seen so far.
+            if train_loss < best_val:
+                with open(self.args.save, 'wb+') as f:
+                    torch.save(model, f)
+                best_val = train_loss
+            if epoch % 5 == 0:
+                test_acc, test_rae, test_corr  = self.evaluate(self.Data, self.Data.test[0], self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
+                print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
+        
+        # Tests best saved model on the test data
+        with open(self.args.save, 'rb+') as f:
+            model = torch.load(f)
+        test_acc, test_rae, test_corr  = self.evaluate(self.Data, self.Data.test[0], self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
+        print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
+
+        return {'loss': best_val, 'status': STATUS_OK}
+
+    # Sets up and performs the actual tuning
+    def tune(self, case):
+        trials = Trials()
+        best = fmin(
+            self.tuned_train,
+            space=case,
+            algo=tpe.suggest,
+            max_evals=1,
+            trials=trials
+        )
+        return best
+
+    # Defines all arguments that are given in shell scripts and the like.
+    # Has its own dedicated function for the sake of readability
+    def set_args(self):
+        self.parser.add_argument('--data', type=str, required=True,
+                            help='location of the data file')
+        self.parser.add_argument('--model', type=str, default='LSTNet',
+                            help='')
+        self.parser.add_argument('--hidCNN', type=int, default=100,
+                            help='number of CNN hidden units')
+        self.parser.add_argument('--hidRNN', type=int, default=100,
+                            help='number of RNN hidden units')
+        self.parser.add_argument('--window', type=int, default=24 * 7,
+                            help='window size')
+        self.parser.add_argument('--CNN_kernel', type=int, default=6,
+                            help='the kernel size of the CNN layers')
+        self.parser.add_argument('--highway_window', type=int, default=24,
+                            help='The window size of the highway component')
+        self.parser.add_argument('--clip', type=float, default=10.,
+                            help='gradient clipping')
+        self.parser.add_argument('--epochs', type=int, default=1,
+                            help='upper epoch limit')
+        self.parser.add_argument('--batch_size', type=int, default=128, metavar='N',
+                            help='batch size')
+        self.parser.add_argument('--dropout', type=float, default=0.2,
+                            help='dropout applied to layers (0 = no dropout)')
+        self.parser.add_argument('--seed', type=int, default=54321,
+                            help='random seed')
+        self.parser.add_argument('--gpu', type=int, default=None)
+        self.parser.add_argument('--log_interval', type=int, default=2000, metavar='N',
+                            help='report interval')
+        self.parser.add_argument('--save', type=str,  default='model/model.pt',
+                            help='path to save the final model')
+        self.parser.add_argument('--cuda', type=str, default=True)
+        self.parser.add_argument('--optim', type=str, default='adam')
+        self.parser.add_argument('--lr', type=float, default=0.001)
+        self.parser.add_argument('--horizon', type=int, default=12)
+        self.parser.add_argument('--skip', type=float, default=24)
+        self.parser.add_argument('--hidSkip', type=int, default=5)
+        self.parser.add_argument('--L1Loss', type=bool, default=True)
+        self.parser.add_argument('--normalize', type=int, default=2)
+        self.parser.add_argument('--output_fun', type=str, default='sigmoid')
+
+trainer = Trainer()
