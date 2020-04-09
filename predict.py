@@ -12,7 +12,7 @@ import importlib
 import numpy
 import sys
 
-from utils import *
+from utils_predict import *
 import Optim
 
 
@@ -106,7 +106,7 @@ if torch.cuda.is_available():
     else:
         torch.cuda.manual_seed(args.seed)
 
-Data = Data_utility(args.data, 0.2, 0.1, args.cuda, args.horizon, args.window, args.normalize)
+Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize)
 print(Data.rse)
 
 model = eval(args.model).Model(args, Data)
