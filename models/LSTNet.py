@@ -16,6 +16,8 @@ class Model(nn.Module):
         self.pt = (self.P - self.Ck)/self.skip
         self.hw = args.highway_window
         self.conv1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
+        self.pool = nn.MaxPool2d(2)
+        self.deconv1 = nn.ConvTranspose2d(self.hidC, 1, (self.Ck, self.m))
         self.GRU1 = nn.GRU(self.hidC, self.hidR);
         self.dropout = nn.Dropout(p = args.dropout);
         if (self.skip > 0):
@@ -55,10 +57,15 @@ class Model(nn.Module):
         c = x.view(-1, 1, self.P, self.m);
         c = F.relu(self.conv1(c));
         c = self.dropout(c);
-        c = torch.squeeze(c, 3);
-
+        #c = torch.squeeze(c, 3);
+        p = F.relu(self.pool(c))
+        print(p.shape)
+        t = F.relu(self.deconv1(p))
+        print(t.shape)
+        t = torch.squeeze(t, 3)
+        print(t.shape)
+        '''
         #Autoencoder
-        print(c.shape)
         activation = self.encoder_hidden_layer(c)
         activation = torch.relu(activation)
         code = self.encoder_output_layer(activation)
@@ -67,9 +74,12 @@ class Model(nn.Module):
         activation = torch.relu(activation)
         activation = self.decoder_output_layer(activation)
         reconstructed = torch.relu(activation)
-        
+        '''
+
+
+
         # RNN 
-        r = reconstructed.permute(2, 0, 1).contiguous();
+        r = t.permute(2, 0, 1).contiguous();
         _, r = self.GRU1(r);
         r = self.dropout(torch.squeeze(r,0));
 
@@ -77,7 +87,7 @@ class Model(nn.Module):
         #skip-rnn
         
         if (self.skip > 0):
-            s = reconstructed[:,:, int(-self.pt * self.skip):].contiguous();
+            s = t[:,:, int(-self.pt * self.skip):].contiguous();
             s = s.view(batch_size, self.hidC, self.pt, self.skip);
             s = s.permute(2,0,3,1).contiguous();
             s = s.view(self.pt, batch_size * self.skip, self.hidC);
