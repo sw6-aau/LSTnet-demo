@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Model(nn.Module):
-    def __init__(self, args, data, cnn, rnn, skip):
+    def __init__(self, args, data, cnn, rnn, skip, activation):
         super(Model, self).__init__()
         self.use_cuda = args.cuda
         self.P = args.window;
@@ -21,7 +21,7 @@ class Model(nn.Module):
         self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (88, self.m))       # Hardcoded 81 for now (163 / 2) (168 - 81 + 1)
 
-        self.change_hidden = nn.Linear(in_features=8, out_features=50)
+        self.change_hidden = nn.Linear(in_features=self.m, out_features=self.hidR)
         
         self.pool = nn.MaxPool2d(2)
         # Linear / dense layer that acts as a hidden 50 unit layer.
@@ -37,9 +37,9 @@ class Model(nn.Module):
         if (self.hw > 0):
             self.highway = nn.Linear(self.hw, 1);
         self.output = None;
-        if (args.output_fun == 'sigmoid'):
+        if (activation == 'sigmoid'):
             self.output = F.sigmoid;
-        if (args.output_fun == 'tanh'):
+        if (activation == 'tanh'):
             self.output = F.tanh;
  
 
@@ -61,8 +61,10 @@ class Model(nn.Module):
         #CNN
         c = F.relu(self.change_hidden(c)) # (128, 1, 168, 50)
         c = self.dropout(c);
+        print(c.shape)
         c = c.view(-1, self.P, self.hidC); # Flattens / reshapes to three arguments which in practice removes the 1
                                            # in second argument by multpiplying the layer with the 50 layer.
+        print(c.shape)
         # output before changes: (128, 50, 163)
         # new output after changes: (128, 168, 50)
         c = c.permute(0, 2, 1)     # Permute magic, to old format
@@ -106,8 +108,6 @@ class Model(nn.Module):
             z = z.permute(0,2,1).contiguous().view(-1, self.hw); # (1024, 24)   #1024 samples (128 samples med 8 markeder flattened = 1024)
             z = self.highway(z);        # In the documentation of linear's input shapes (not definition), 
                                         # the inputs can be whatever dimensions, as long as the last dimension is input size, this last dim is 24, and is changed to 8
-            print("SHAPE:")
-            print(z.shape)
             z = z.view(-1,self.m);      # Assumed output: (1024, 8) WRONG shapes it back to (128, 8)
             res = res + z;
             

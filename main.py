@@ -54,17 +54,29 @@ class Trainer:
         self.cnn = self.args.hidCNN
         self.rnn = self.args.hidRNN
         self.skip = self.args.hidSkip
+        self.activation = self.args.output_fun
 
         # Define spaces for hypertuning
         case0 = hp.uniform('epoch', 1, 2)
         case1 = hp.uniform('cnn', 30, 2000)
         case2 = hp.uniform('rnn', 30, 2000)
         case3 = hp.uniform('skip', 2, 50)
+        case4 = hp.choice('activation_type', [
+            {
+                'type': 'None',
+            },
+            {
+                'type': 'sigmoid',
+            },
+            {
+                'type': 'tanh',
+            },
+        ])
         cases = [case0, case1, case2, case3]
         self.active = ''
 
         # Tune each parameter one by one
-        for x in range(0,4):
+        for x in range(0,len(cases)):
             if x == 0:
                 self.active = 'epoch'
             elif x == 1:
@@ -73,6 +85,8 @@ class Trainer:
                 self.active = 'rnn'
             elif x == 3:
                 self.active = 'skip'
+            elif x == 4:
+                self.active = 'activation_type'
 
             best = self.tune(cases[x])
             print(best)
@@ -85,6 +99,8 @@ class Trainer:
                 self.rnn = int(best['rnn'])
             elif x == 3:
                 self.skip = int(best['skip'])
+            elif x == 4:
+                self.activation = best
 
 
 
@@ -158,9 +174,11 @@ class Trainer:
             self.rnn = tuning
         elif self.active == 'skip':
             self.skip = tuning
+        elif self.active == 'activation':
+            self.activation = tuning
             
         # Prepares the model for training
-        model = eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip);
+        model = eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation);
 
         nParams = sum([p.nelement() for p in model.parameters()])
         print('* number of parameters: %d' % nParams)
