@@ -16,10 +16,15 @@ class Model(nn.Module):
         self.pt = (self.P - self.Ck)/self.skip  # (168 - 6) / 24 = 6.75
         self.hw = args.highway_window
         
-        #self.conv1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
+        self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
         
-        self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
-        self.decode = nn.ConvTranspose2d(self.hidC, 1, (88, self.m))       # Hardcoded 81 for now (163 / 2) (168 - 81 + 1)
+        self.height_after_conv = (self.P - (self.Ck - 1))           # Conv layer changes shape by, Input size - (height - 1)
+        self.height_after_pooling = self.height_after_conv/2        # Max pooling 2x2 gives a input size reduction of input_size / 2
+        self.deconv_height = self.P - self.height_after_pooling + 1 # Transpose layer adds the height argument to the input shape -1, after convolution. So  
+                                                                    # in order to get the original size of self.P, we find the difference between height after the
+                                                                    # pooling layer and adds 1 to negate the -1 that is subtracted when using the method.
+        
+        self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
 
         self.change_hidden = nn.Linear(in_features=8, out_features=50)
         
@@ -42,6 +47,8 @@ class Model(nn.Module):
         if (args.output_fun == 'tanh'):
             self.output = F.tanh;
  
+        # 163 / 2 + 7 
+        # 168 - 81 + 1 (81 input efter pooling)
 
 
         # New convolutional layer
@@ -50,10 +57,10 @@ class Model(nn.Module):
 
     def forward(self, x):
         batch_size = x.size(0);
-
+        print(self.P - (self.P - (self.Ck - 1))/2 + 1)
+        #print(self.Ck - 1)
         c = x.view(-1, 1, self.P, self.m);  # (128, 1, 168, 8)  <--- efter dette bliver 8 betragtet som input size (1 * 8), er det okay? virker som om det passer fint med vores
                                             # multi variant model med 8 forskellige markedere (for stocks) 168 height in conv layer
-
         # CNN Autoencoder
         c = F.relu(self.encode(c))      # (128, 50, 163, 1)
         c = self.pool(c)                # (128, 50, 81, 1) (rip 163 / 2 = 81, rounding down)
