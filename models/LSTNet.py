@@ -8,8 +8,10 @@ class Model(nn.Module):
         self.use_cuda = args.cuda
         self.P = args.window;
         self.m = data.m
-        self.hidR = rnn;
         self.hidC = cnn;
+        print('CNN: ' + str(self.hidC))
+        self.hidR = rnn;
+        print('RNN: ' + str(self.hidR))
         self.hidS = skip;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
@@ -26,7 +28,8 @@ class Model(nn.Module):
         
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
 
-        self.change_hidden = nn.Linear(in_features=self.m, out_features=self.hidR)
+        self.change_hidden = nn.Linear(in_features=self.m, out_features=self.hidC)
+        #self.activator = nn.Linear(7634, 21378964)
         
         self.pool = nn.MaxPool2d(2)
         # Linear / dense layer that acts as a hidden 50 unit layer.
@@ -41,11 +44,17 @@ class Model(nn.Module):
             self.linear1 = nn.Linear(self.hidR, self.m);
         if (self.hw > 0):
             self.highway = nn.Linear(self.hw, 1);
+
+        # Deprecated shit that somehow only works because it's deprecated
+        # GG PyTorch
         self.output = None;
         if (activation == 'sigmoid'):
             self.output = F.sigmoid;
         if (activation == 'tanh'):
             self.output = F.tanh;
+        if (activation == 'relu'):
+            self.output = F.relu;
+        
  
         # 163 / 2 + 7 
         # 168 - 81 + 1 (81 input efter pooling)
@@ -69,7 +78,7 @@ class Model(nn.Module):
         c = F.relu(self.change_hidden(c)) # (128, 1, 168, 50)
         c = self.dropout(c);
         print(c.shape)
-        c = c.view(-1, self.P, self.hidC); # Flattens / reshapes to three arguments which in practice removes the 1
+        c = torch.squeeze(c, 1) # Flattens / reshapes to three arguments which in practice removes the 1
                                            # in second argument by multpiplying the layer with the 50 layer.
         print(c.shape)
         # output before changes: (128, 50, 163)

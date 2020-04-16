@@ -58,9 +58,9 @@ class Trainer:
 
         # Define spaces for hypertuning
         case0 = hp.uniform('epoch', 1, 2)
-        case1 = hp.uniform('cnn', 30, 2000)
-        case2 = hp.uniform('rnn', 30, 2000)
-        case3 = hp.uniform('skip', 2, 50)
+        case1 = hp.uniform('cnn', 30, 35)
+        case2 = hp.uniform('rnn', 30, 35)
+        case3 = hp.uniform('skip', 2, 3)
         case4 = hp.choice('activation_type', [
             {
                 'type': 'None',
@@ -71,8 +71,11 @@ class Trainer:
             {
                 'type': 'tanh',
             },
+            {
+                'type': 'relu',
+            },
         ])
-        cases = [case0, case1, case2, case3]
+        cases = [case0, case1, case2, case3, case4]
         self.active = ''
 
         # Tune each parameter one by one
@@ -165,17 +168,18 @@ class Trainer:
     # Tunes hyperparameters and trains the model
     def tuned_train(self, tuning):
         # Adjusts hyperparameter to the value for this specific iteration
-        tuning = int(tuning)
         if self.active == 'epoch':
-            self.hyper_epoch = tuning
+            self.hyper_epoch = int(tuning)
         elif self.active == 'cnn':
-            self.cnn = tuning
+            self.cnn = int(tuning)
         elif self.active == 'rnn':
-            self.rnn = tuning
+            self.rnn = int(tuning)
         elif self.active == 'skip':
-            self.skip = tuning
-        elif self.active == 'activation':
-            self.activation = tuning
+            self.skip = int(tuning)
+        elif self.active == 'activation_type':
+            self.activation = tuning['type']
+            print('We activatin:')
+            print(self.activation)
             
         # Prepares the model for training
         model = eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation);
