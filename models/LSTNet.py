@@ -76,18 +76,20 @@ class Model(nn.Module):
         # RNN 
         r = c.permute(2, 0, 1).contiguous();        # We could simply not permute and feed the RNN the original shape of the data, why do they permute? Is the 
                                                     # order the input is fed to the RNN somehow important?
-                                                    # The order was changed from (128, 50, 163) to (163, 128, 50)
+                                                    # The order was changed from (128, 50, 168) to (168, 128, 50) (was 163 when we had conv and not autoencode)
                                                     # parameters from doc: input_size, hidden_size, num_layers
                                                     # num_layers = 50 output layers from CNN layer
                                                     # 128 should be the batch size, but is put in as hidden_size, makes sense if you consider that each time series step in the batch
                                                     # must have its own hidden layer representation
-                                                    # num layers = convoluted(self.P) (P = window, P from report i.e. look back horizon) default without conv 24*7 = 168
+                                                    # input size = convoluted(self.P) (P = window, P from report i.e. look back horizon) default without conv 24*7 = 168
                                                     # How is it that conv layer changes (128, 1, 168, 8) to (128, 50, 163, 1)
                                                     # In theory permuting the original input to (128, 8, 168) should be legal. It would mean it takes the 8 input layers, 
                                                     # of the 50 from the convolutional network, but i dont know what effect that will have. You could also apply a linear layer
                                                     # that changes the input 8 layer to a 50 layer, like we did with linear encoding, but again not sure of the effect. 
                                                     # In theory it should be perfectly fine as this is how normal neural networks are made, input layer (typically 
                                                     # 1 if not multivariant like ours), hidden layers, and output layers (typically same amount as input layers)
+        print("r shape")
+        print(r.shape)
         _, r = self.GRU1(r);
         r = self.dropout(torch.squeeze(r,0));
 
@@ -96,12 +98,14 @@ class Model(nn.Module):
         
         if (self.skip > 0):
             s = c[:,:, int(-self.pt * self.skip):].contiguous();  # c = 128, 168, 50 (changed by us), (all elements from ":") s = : (128), : (168), -162: (gets the last 162 elements)  
-                                                                  # int calculation = (-6.75 * 24) = -162
-            s = s.view(batch_size, self.hidC, self.pt, self.skip);  # expected : (128, 50, )
-            s = s.permute(2,0,3,1).contiguous();
-            s = s.view(self.pt, batch_size * self.skip, self.hidC);
-            _, s = self.GRUskip(s);
-            s = s.view(batch_size, self.skip * self.hidS);
+                                                                  # int calculation = (-6 * 24) = -162
+            s = s.view(batch_size, self.hidC, self.pt, self.skip);      # expected (128, 50, -6.75, 24)
+            s = s.permute(2,0,3,1).contiguous();                        # expected (6, 128, 24, 50) (self.pt, batch-size, self.skip, self.hidC) Permutes so view, combines batch and self.skip
+            s = s.view(self.pt, batch_size * self.skip, self.hidC);     # expected (6, 128*24=3072, 50) removes the last dimension, view does this by multiplying the last dimension 
+                                                                        # with the dimension two dimensions behind it.
+            _, s = self.GRUskip(s);                                     # parameters from doc: input_size, hidden_size, num_layers. Parameters this time: 6, 3072, 50
+                                                                        # why input size 6
+            s = s.view(batch_size, self.skip * self.hidS);              
             s = self.dropout(s);
             r = torch.cat((r,s),1);
         
@@ -113,8 +117,7 @@ class Model(nn.Module):
             z = z.permute(0,2,1).contiguous().view(-1, self.hw); # (1024, 24)   #1024 samples (128 samples med 8 markeder flattened = 1024)
             z = self.highway(z);        # In the documentation of linear's input shapes (not definition), 
                                         # the inputs can be whatever dimensions, as long as the last dimension is input size, this last dim is 24, and is changed to 8
-            print("SHAPE:")
-            print(z.shape)
+
             z = z.view(-1,self.m);      # Assumed output: (1024, 8) WRONG shapes it back to (128, 8)
             res = res + z;
             
