@@ -13,7 +13,11 @@ class Model(nn.Module):
         self.hidS = args.hidSkip;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
-        self.pt = (self.P - self.Ck)/self.skip  # (168 - 6) / 24 = 6.75
+        self.pt = (self.P - self.Ck)/self.skip  # (168 - 6) / 24 = 6.75 rounded 6 # If they have made a mistake here it would make a lot more sense. Then 168 - 6 would be
+                                                # sequence length after being processed by CNN layer, but the actual shape after CNN layer was 163 (i.e. - 5), but that can be unintuitive to
+                                                # determine, since it is sequence length - (Ck - 1) after being processed by CNN layer not sequence length - Ck.
+                                                # This would make sense of the RNN-skip arguments, they want to feed the input to the RNN with the knoweledge
+                                                # that the inputs are 24 hours in a day, so they div
         self.hw = args.highway_window
         
         self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
@@ -26,7 +30,7 @@ class Model(nn.Module):
         
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
 
-        self.change_hidden = nn.Linear(in_features=8, out_features=50)
+        self.change_hidden = nn.Linear(in_features=8, out_features=self.hidC)
         
         self.pool = nn.MaxPool2d(2)
         # Linear / dense layer that acts as a hidden 50 unit layer.
@@ -74,44 +78,39 @@ class Model(nn.Module):
         # new output after changes: (128, 168, 50)
         c = c.permute(0, 2, 1)     # Permute magic, to old format
         # RNN 
-        r = c.permute(2, 0, 1).contiguous();        # We could simply not permute and feed the RNN the original shape of the data, why do they permute? Is the 
-                                                    # order the input is fed to the RNN somehow important?
-                                                    # The order was changed from (128, 50, 168) to (168, 128, 50) (was 163 when we had conv and not autoencode)
-                                                    # parameters from doc: input_size, hidden_size, num_layers
-                                                    # num_layers = 50 output layers from CNN layer
-                                                    # 128 should be the batch size, but is put in as hidden_size, makes sense if you consider that each time series step in the batch
-                                                    # must have its own hidden layer representation
-                                                    # input size = convoluted(self.P) (P = window, P from report i.e. look back horizon) default without conv 24*7 = 168
-                                                    # How is it that conv layer changes (128, 1, 168, 8) to (128, 50, 163, 1)
-                                                    # In theory permuting the original input to (128, 8, 168) should be legal. It would mean it takes the 8 input layers, 
-                                                    # of the 50 from the convolutional network, but i dont know what effect that will have. You could also apply a linear layer
-                                                    # that changes the input 8 layer to a 50 layer, like we did with linear encoding, but again not sure of the effect. 
-                                                    # In theory it should be perfectly fine as this is how normal neural networks are made, input layer (typically 
-                                                    # 1 if not multivariant like ours), hidden layers, and output layers (typically same amount as input layers)
-        print("r shape")
-        print(r.shape)
-        _, r = self.GRU1(r);
+        r = c.permute(2, 0, 1).contiguous();        # The order was changed from (128, 50, 168) to (168, 128, 50) (was 163 when we had conv and not autoencode)
+        _, r = self.GRU1(r);                        # shape parameters from doc: seq_len, batch, input_size, 
+                                                    # input size is layer input size, batch is batch. "seq_len - the number of time steps in each input stream." i.e. each input
+                                                    # that is fed to the RNN will consist of 168 rows of time stamps. Remember that all the input processed in each batch.
         r = self.dropout(torch.squeeze(r,0));
 
         
-        #skip-rnn
+        #skip-rnn # adds a rnn with periodic patterns, in the current implementation it's a rnn with day to day steps and predictions
         
         if (self.skip > 0):
             s = c[:,:, int(-self.pt * self.skip):].contiguous();  # c = 128, 168, 50 (changed by us), (all elements from ":") s = : (128), : (168), -162: (gets the last 162 elements)  
-                                                                  # int calculation = (-6 * 24) = -162
+                                                                  # int calculation = (-6 * 24) = -144
             s = s.view(batch_size, self.hidC, self.pt, self.skip);      # expected (128, 50, -6.75, 24)
             s = s.permute(2,0,3,1).contiguous();                        # expected (6, 128, 24, 50) (self.pt, batch-size, self.skip, self.hidC) Permutes so view, combines batch and self.skip
             s = s.view(self.pt, batch_size * self.skip, self.hidC);     # expected (6, 128*24=3072, 50) removes the last dimension, view does this by multiplying the last dimension 
                                                                         # with the dimension two dimensions behind it.
-            _, s = self.GRUskip(s);                                     # parameters from doc: input_size, hidden_size, num_layers. Parameters this time: 6, 3072, 50
-                                                                        # why input size 6
-            s = s.view(batch_size, self.skip * self.hidS);              
+            _, s = self.GRUskip(s);                                     # shape parameters from doc: seq_len, batch, input_size. Batch increased because each sequence time step
+                                                                        # now is one day (24 hours) instead of one hour, between each time stamp. Meaning this configuration would try
+                                                                        # to predict a day forward.
+                                                                        # output doc:
+                                                                        # h_n of shape (num_layers * num_directions, batch, hidden_size): tensor containing the hidden state for t = seq_len
+                                                                        # output: (1, 3072, 5)
+            s = s.view(batch_size, self.skip * self.hidS);              # Reshapes the vector back to batches of 128 (one hour) format, output: 128, 120 (24 * 5)
+                                                                        # How is hidS (The hidden size after processing by the skip-GRU, default 5) determined? 
             s = self.dropout(s);
             r = torch.cat((r,s),1);
         
         res = self.linear1(r);
         
-        #highway
+        #highway # Adds a linear layers directly on the input data (works as a highway). The idea is the dense layer performing autoregresion (attempting to guess the future,
+        # in this case by adjusting the result with weights in its dense layer) on the raw data, independeltly from any kind of RNN. This makes it more sensitive to 
+        # violated scale fluctuations in data (which is typical in Electricity data possibly due to random events for public holidays or temperature turbulence, etc.)
+        # which it can fit its weights to adjust for (given they are a frequent occurence). The opposite of a autoencoder, really, we are so fuckeddd.
         if (self.hw > 0):
             z = x[:, -self.hw:, :]; # (128, 24, 8) #self.hw = 24 (normally 168, but looks at last 24 input values)
             z = z.permute(0,2,1).contiguous().view(-1, self.hw); # (1024, 24)   #1024 samples (128 samples med 8 markeder flattened = 1024)
