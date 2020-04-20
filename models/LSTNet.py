@@ -130,6 +130,3 @@ class Model(nn.Module):
         if (self.output):
             res = self.output(res);
         return res;
-     
-        
-        
