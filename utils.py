@@ -49,11 +49,13 @@ class Data_utility(object):
         
     def _split(self, train, valid, test):
         
-        train_set = range(self.P+self.h-1, train);
+        train_set = range(self.P+self.h-1, train);  # It dosen't make predictions on the first self.P+self.h-1, because it needs self.P+self.h-1 inputs before making a prediction.
+                                                    # It is training so that, given self.P+self.h-1 inputs predict horizon time steps ahead.
         valid_set = range(train, valid);
         test_set = range(valid, self.n);
         self.train = self._batchify(train_set, self.h);
         self.valid = self._batchify(valid_set, self.h);
+        #print("RIght here boi--------------------------------------------------------------")
         self.test = self._batchify(test_set, self.h);
         
         
@@ -66,6 +68,9 @@ class Data_utility(object):
         for i in range(n):
             end = idx_set[i] - self.h + 1;
             start = end - self.P;
+            # Hypothesis: It makes the prediction, horizon steps ahead after the last input in the window
+            #print(start) # 621
+            #print(end) # 789 (included index 789 it is currently processing, meaning there is 12 steps ahead to 1000)
             X[i,:,:] = torch.from_numpy(self.dat[start:end, :]);
             Y[i,:] = torch.from_numpy(self.dat[idx_set[i], :]);
 

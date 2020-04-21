@@ -61,7 +61,7 @@ class Model(nn.Module):
 
     def forward(self, x):
         batch_size = x.size(0);
-        print(self.P - (self.P - (self.Ck - 1))/2 + 1)
+        #print(self.P - (self.P - (self.Ck - 1))/2 + 1)
         #print(self.Ck - 1)
         c = x.view(-1, 1, self.P, self.m);  # (128, 1, 168, 8)  <--- efter dette bliver 8 betragtet som input size (1 * 8), er det okay? virker som om det passer fint med vores
                                             # multi variant model med 8 forskellige markedere (for stocks) 168 height in conv layer
@@ -69,8 +69,9 @@ class Model(nn.Module):
         c = F.relu(self.encode(c))      # (128, 50, 163, 1)
         c = self.pool(c)                # (128, 50, 81, 1) (rip 163 / 2 = 81, rounding down)
         c = F.relu(self.decode(c))  
+        c = self.dropout(c);
         #CNN
-        c = F.relu(self.change_hidden(c)) # (128, 1, 168, 50)
+        c = F.relu(self.change_hidden(c)) # (128, 1, 168, 50) (7*24)
         c = self.dropout(c);
         c = c.view(-1, self.P, self.hidC); # Flattens / reshapes to three arguments which in practice removes the 1
                                            # in second argument by multpiplying the layer with the 50 layer.
@@ -101,16 +102,18 @@ class Model(nn.Module):
                                                                         # h_n of shape (num_layers * num_directions, batch, hidden_size): tensor containing the hidden state for t = seq_len
                                                                         # output: (1, 3072, 5)
             s = s.view(batch_size, self.skip * self.hidS);              # Reshapes the vector back to batches of 128 (one hour) format, output: 128, 120 (24 * 5)
-                                                                        # How is hidS (The hidden size after processing by the skip-GRU, default 5) determined? 
+                                                                        # hidS: The number of features in the hidden state h
             s = self.dropout(s);
             r = torch.cat((r,s),1);
         
         res = self.linear1(r);
         
-        #highway # Adds a linear layers directly on the input data (works as a highway). The idea is the dense layer performing autoregresion (attempting to guess the future,
+        # highway # Adds a linear layers directly on the input data (works as a highway). The idea is the dense layer performing autoregresion (attempting to guess the future,
         # in this case by adjusting the result with weights in its dense layer) on the raw data, independeltly from any kind of RNN. This makes it more sensitive to 
         # violated scale fluctuations in data (which is typical in Electricity data possibly due to random events for public holidays or temperature turbulence, etc.)
-        # which it can fit its weights to adjust for (given they are a frequent occurence). The opposite of a autoencoder, really, we are so fuckeddd.
+        # which it can fit its weights to adjust for (given they are a frequent occurence).
+        # Also really important for keeping the general base structure of the input, since this part tries to adjusts weights to mimick the original input, without first 
+        # deconstructing the input in a RNN hidden state....?
         if (self.hw > 0):
             z = x[:, -self.hw:, :]; # (128, 24, 8) #self.hw = 24 (normally 168, but looks at last 24 input values)
             z = z.permute(0,2,1).contiguous().view(-1, self.hw); # (1024, 24)   #1024 samples (128 samples med 8 markeder flattened = 1024)
