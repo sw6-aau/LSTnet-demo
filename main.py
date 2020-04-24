@@ -34,7 +34,7 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
             test = torch.cat((test, Y));
         
         # Extra modifications and loss calculation
-        scale = data.scale.expand(output.size(0), data.m)
+        scale = data.scale.expand(output.size(0), data.m)  # What does scale do
         total_loss += evaluateL2(output * scale, Y * scale).data
         total_loss_l1 += evaluateL1(output * scale, Y * scale).data
         n_samples += (output.size(0) * data.m);
@@ -43,7 +43,6 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
     rae = (total_loss_l1/n_samples)/data.rae
     
     # Calculates correlation
-    # No clue how it actually achieves it
     predict = predict.data.cpu().numpy();
     Ytest = test.data.cpu().numpy();
     sigma_p = (predict).std(axis = 0);
