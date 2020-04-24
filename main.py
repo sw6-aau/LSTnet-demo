@@ -16,14 +16,15 @@ import Optim
 # Passes the data-set as input to the model in small batches
 # After the data-set has been fully parsed, the output is compared to the original data-set.
 def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
-    model.eval();
+    model.eval();       # Sets the model to evaluation mode
     total_loss = 0;
     total_loss_l1 = 0;
     n_samples = 0;
     predict = None;
     test = None;
     
-    # Iterates through all the batches as inputs.
+    # Iterates through all the batches as inputs and uses the latest model on it. 
+    # Appends the batches of X and Y to big tensors, and finds the total loss according to both metrics, RSE and RAE.
     for X, Y in data.get_batches(X, Y, batch_size, False):
         output = model(X);
         if predict is None:
@@ -33,9 +34,8 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
             predict = torch.cat((predict,output));
             test = torch.cat((test, Y));
         
-        # Extra modifications and loss calculation
-        scale = data.scale.expand(output.size(0), data.m)  # What does scale do
-        total_loss += evaluateL2(output * scale, Y * scale).data
+        scale = data.scale.expand(output.size(0), data.m)
+        total_loss += evaluateL2(output * scale, Y * scale).data    # .data??
         total_loss_l1 += evaluateL1(output * scale, Y * scale).data
         n_samples += (output.size(0) * data.m);
     
@@ -55,19 +55,19 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
     return rse, rae, correlation;
 
 def train(data, X, Y, model, criterion, optim, batch_size):
-    model.train();
+    model.train();                  # Sets the model to training mode
     total_loss = 0;
     n_samples = 0;
     for X, Y in data.get_batches(X, Y, batch_size, True):
-        model.zero_grad();
+        model.zero_grad();          # Reset gradient
         output = model(X);
-        scale = data.scale.expand(output.size(0), data.m)
-        loss = criterion(output * scale, Y * scale);
-        loss.backward();
-        grad_norm = optim.step();
-        total_loss += loss.data;
-        n_samples += (output.size(0) * data.m);
-    return total_loss / n_samples
+        scale = data.scale.expand(output.size(0), data.m)  # Expand the original scale tensor to have row size matching the batch size.
+        loss = criterion(output * scale, Y * scale);    # defines the loss / objective function, loss function arguments (input, target)
+        loss.backward();                                # Computes the loss for every gradient / weight?
+        grad_norm = optim.step();                       # Updates gradients? https://discuss.pytorch.org/t/what-does-the-backward-function-do/9944
+        total_loss += loss.data;                        # Adds the loss for this batch to the total loss
+        n_samples += (output.size(0) * data.m);         # Increments the sample count with this sample size.
+    return total_loss / n_samples                       # Returns average loss of all samples
     
 parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
 parser.add_argument('--data', type=str, required=True,
@@ -154,8 +154,8 @@ try:
     print('begin training');
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
-        val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
+        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size) # Changes the gradients and finds loss, X, Y from bachify
+        val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size); # Evaluates loss according to RSE RAE CORR fomulars
         print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
         
         # Save the model if the validation loss is the best we've seen so far.

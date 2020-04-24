@@ -103,7 +103,6 @@ class Model(nn.Module):
             z = self.highway(z);                                        # (1024, 1) In the documentation of linear's input shapes (not definition), 
                                                                         # the inputs can be whatever dimensions, as long as the last dimension is input size, 
                                                                         # this last dim is 24, and is changed to 1
-            print(z.shape)
             z = z.view(-1,self.m);                                      # (1024, 8) view reshapes the output of the highway layer back to 8 dimensions / collumns
             res = res + z;                                              # Adds the result from the two RNNs' with the highway layer.
             
