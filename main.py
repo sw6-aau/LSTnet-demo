@@ -58,6 +58,7 @@ class Trainer:
         self.activation = self.args.output_fun
 
         # Define spaces for hypertuning
+        self.evaluations = 50
         case0 = hp.uniform('epoch', 10, 800)
         case1 = hp.uniform('cnn', 30, 2000)
         case2 = hp.uniform('rnn', 30, 2000)
@@ -229,7 +230,7 @@ class Trainer:
             self.tuned_train,
             space=case,
             algo=tpe.suggest,
-            max_evals=1,
+            max_evals=self.evaluations,
             trials=trials
         )
         return best
