@@ -221,7 +221,7 @@ class Trainer:
         test_acc, test_rae, test_corr  = self.evaluate(self.Data, self.Data.test[0], self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
         print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
-        return {'loss': best_val, 'status': STATUS_OK}
+        return {'loss': test_acc, 'status': STATUS_OK}
 
     # Sets up and performs the actual tuning
     def tune(self, case):
