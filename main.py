@@ -79,11 +79,11 @@ class Trainer:
         ])
         cases = [case0, case1, case2, case3, case4]
         self.active = ''
-        epochtrials = trials.Trials()
-        cnntrials = trials.Trials()
-        rnntrials = trials.Trials()
-        skiptrials = trials.Trials()
-        actitrials = trials.Trials()
+        epochtrials = Trials()
+        cnntrials = Trials()
+        rnntrials = Trials()
+        skiptrials = Trials()
+        actitrials = Trials()
 
         # Tune each parameter one by one
         for x in range(0,len(cases)):
