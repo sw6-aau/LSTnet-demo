@@ -238,7 +238,7 @@ class Trainer:
     def set_args(self):
         self.parser.add_argument('--data', type=str, required=True,
                             help='location of the data file')
-        self.parser.add_argument('--model', type=str, default='LSTNet',
+        self.parser.add_argument('--model', type=str, default='LSTM',
                             help='')
         self.parser.add_argument('--hidCNN', type=int, default=100,
                             help='number of CNN hidden units')
