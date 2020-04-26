@@ -58,10 +58,10 @@ class Trainer:
         self.activation = self.args.output_fun
 
         # Define spaces for hypertuning
-        case0 = hp.uniform('epoch', 1, 2)
-        case1 = hp.uniform('cnn', 30, 35)
-        case2 = hp.uniform('rnn', 30, 35)
-        case3 = hp.uniform('skip', 2, 3)
+        case0 = hp.uniform('epoch', 10, 800)
+        case1 = hp.uniform('cnn', 30, 2000)
+        case2 = hp.uniform('rnn', 30, 2000)
+        case3 = hp.uniform('skip', 2, 10)
         case4 = hp.choice('activation_type', [
             {
                 'type': 'None',
