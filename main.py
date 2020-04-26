@@ -58,8 +58,8 @@ class Trainer:
         self.activation = self.args.output_fun
 
         # Define spaces for hypertuning
-        self.evaluations = 20
-        case0 = hp.uniform('epoch', 10, 400)
+        self.evaluations = 5
+        case0 = hp.uniform('epoch', 10, 250)
         case1 = hp.uniform('cnn', 30, 800)
         case2 = hp.uniform('rnn', 30, 800)
         case3 = hp.uniform('skip', 2, 10)
@@ -79,6 +79,11 @@ class Trainer:
         ])
         cases = [case0, case1, case2, case3, case4]
         self.active = ''
+        epochtrials = trials.Trials()
+        cnntrials = trials.Trials()
+        rnntrials = trials.Trials()
+        skiptrials = trials.Trials()
+        actitrials = trials.Trials()
 
         # Tune each parameter one by one
         for x in range(0,len(cases)):
@@ -93,25 +98,36 @@ class Trainer:
             elif x == 4:
                 self.active = 'activation_type'
 
-            best = self.tune(cases[x])
+            best, trials = self.tune(cases[x])
             print(best)
 
             if x == 0:
                 self.hyper_epoch = int(best['epoch'])
+                epochtrials = trials
             elif x == 1:
                 self.cnn = int(best['cnn'])
+                cnntrials = trials
             elif x == 2:
                 self.rnn = int(best['rnn'])
+                rnntrials = trials
             elif x == 3:
                 self.skip = int(best['skip'])
+                skiptrials = trials
             elif x == 4:
                 self.activation = best
-            print('Model: ' + self.args.model)
-            print('Best epoch: ' + str(self.hyper_epoch))
-            print('Best cnn: ' + str(self.cnn))
-            print('Best rnn: ' + str(self.rnn))
-            print('Best skip: ' + str(self.skip))
-            print('Best activator: ' + str(self.activation))
+                actitrials = trials
+
+        print('Model: ' + self.args.model)
+        print('Best epoch: ' + str(self.hyper_epoch))
+        print(epochtrials.trials)
+        print('Best cnn: ' + str(self.cnn))
+        print(cnntrials.trials)
+        print('Best rnn: ' + str(self.rnn))
+        print(rnntrials.trials)
+        print('Best skip: ' + str(self.skip))
+        print(skiptrials.trials)
+        print('Best activator: ' + str(self.activation))
+        print(actitrials.trials)
 
 
 
@@ -239,7 +255,7 @@ class Trainer:
             max_evals=self.evaluations,
             trials=trials
         )
-        return best
+        return best, trials
 
     # Defines all arguments that are given in shell scripts and the like.
     # Has its own dedicated function for the sake of readability
