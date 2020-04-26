@@ -3,14 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Model(nn.Module):
-    def __init__(self, args, data):
+    def __init__(self, args, data, cnn, rnn, skip, activation):
         super(Model, self).__init__()
         self.use_cuda = args.cuda
         self.P = args.window;
         self.m = data.m
-        self.hidR = args.hidRNN;
-        self.hidC = args.hidCNN;
-        self.hidS = args.hidSkip;
+        self.hidC = cnn;
+        self.hidR = rnn;
+        self.hidS = skip;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
         self.pt = (self.P - self.Ck)/self.skip
@@ -26,24 +26,12 @@ class Model(nn.Module):
         if (self.hw > 0):
             self.highway = nn.Linear(self.hw, 1);
         self.output = None;
-        if (args.output_fun == 'sigmoid'):
+        if (activation == 'sigmoid'):
             self.output = F.sigmoid;
-        if (args.output_fun == 'tanh'):
+        if (activation == 'tanh'):
             self.output = F.tanh;
- 
-        # Autoencoders Layer Initializations
-        self.encoder_hidden_layer = nn.Linear(
-            in_features=1, out_features=128
-        )
-        self.encoder_output_layer = nn.Linear(
-            in_features=128, out_features=128
-        )
-        self.decoder_hidden_layer = nn.Linear(
-            in_features=128, out_features=128
-        )
-        self.decoder_output_layer = nn.Linear(
-            in_features=128, out_features=1
-        )
+        if (activation == 'relu'):
+            self.output = F.relu;
 
 
     def forward(self, x):
@@ -53,20 +41,9 @@ class Model(nn.Module):
         c = x.view(-1, 1, self.P, self.m);
         c = F.relu(self.conv1(c));
         c = self.dropout(c);
-
-        #Autoencoder
-        print(c.shape)
-        activation = self.encoder_hidden_layer(c)
-        activation = torch.relu(activation)
-        code = self.encoder_output_layer(activation)
-        code = torch.relu(code)
-        activation = self.decoder_hidden_layer(code)
-        activation = torch.relu(activation)
-        activation = self.decoder_output_layer(activation)
-        reconstructed = torch.relu(activation)
         
         # RNN 
-        r = reconstructed.permute(2, 0, 1).contiguous();
+        r = c.permute(2, 0, 1).contiguous();
         _, r = self.GRU1(r);
         r = self.dropout(torch.squeeze(r,0));
 
@@ -74,7 +51,7 @@ class Model(nn.Module):
         #skip-rnn
         
         if (self.skip > 0):
-            s = reconstructed[:,:, int(-self.pt * self.skip):].contiguous();
+            s = c[:,:, int(-self.pt * self.skip):].contiguous();
             s = s.view(batch_size, self.hidC, self.pt, self.skip);
             s = s.permute(2,0,3,1).contiguous();
             s = s.view(self.pt, batch_size * self.skip, self.hidC);
