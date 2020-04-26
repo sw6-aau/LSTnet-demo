@@ -49,15 +49,15 @@ class Model(nn.Module):
 
     def forward(self, x):
         batch_size = x.size(0);
-        c = x.view(-1, 1, self.P, self.m);
+        ae = x.view(-1, 1, self.P, self.m);
         # CNN Autoencoder
-        c = F.relu(self.encode(c))      # (128, 50, 163, 1)
-        c = self.pool(c)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
-        c = F.relu(self.decode(c))  
-        c = self.dropout(c);
+        ae = F.relu(self.encode(ae))      # (128, 50, 163, 1)
+        ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
+        ae = F.relu(self.decode(ae))  
+        ae = self.dropout(ae);
         
         #CNN
-        c = F.relu(self.conv1(c)) # (128, 1, 168, 50) (7*24=168)
+        c = F.relu(self.conv1(ae)) # (128, 1, 168, 50) (7*24=168)
         c = self.dropout(c);
         c = torch.squeeze(c, 3);
 

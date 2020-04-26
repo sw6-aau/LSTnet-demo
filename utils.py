@@ -77,7 +77,15 @@ class Data_utility(object):
                                   
             start = end - self.P;   # Hypothesis: It makes the prediction, horizon steps ahead after the last input in the window
                                     # start 621, end = 789 (for testset) (included index 789 it is currently processing, meaning there is 12 steps ahead to 1000)
-            X[i,:,:] = torch.from_numpy(self.dat[start:end, :]);    # The input for training, the 168 values it uses as input
+            
+            # Adds noise to the input values (X), that will be used for training. At the moment it will also affect validation X (evaluation) and test X set, is that okay?
+            noise_factor = 0.5
+            x_numpy_array = self.dat[start:end, :]
+            x_train_noisy = x_numpy_array + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=x_numpy_array.shape) 
+            x_train_noisy = np.clip(x_train_noisy, 0., 1.)
+
+            X[i,:,:] = torch.from_numpy(x_train_noisy)
+            #X[i,:,:] = torch.from_numpy(self.dat[start:end, :]);    # The input for training, the 168 values it uses as input
             Y[i,:] = torch.from_numpy(self.dat[idx_set[i], :]);     # The exact time step it tries to predict, window (168) + horizon (12)
         return [X, Y];
 
