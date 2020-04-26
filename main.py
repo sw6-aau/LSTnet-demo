@@ -58,10 +58,10 @@ class Trainer:
         self.activation = self.args.output_fun
 
         # Define spaces for hypertuning
-        self.evaluations = 50
-        case0 = hp.uniform('epoch', 10, 800)
-        case1 = hp.uniform('cnn', 30, 2000)
-        case2 = hp.uniform('rnn', 30, 2000)
+        self.evaluations = 20
+        case0 = hp.uniform('epoch', 10, 400)
+        case1 = hp.uniform('cnn', 30, 800)
+        case2 = hp.uniform('rnn', 30, 800)
         case3 = hp.uniform('skip', 2, 10)
         case4 = hp.choice('activation_type', [
             {
@@ -106,6 +106,12 @@ class Trainer:
                 self.skip = int(best['skip'])
             elif x == 4:
                 self.activation = best
+            print('Model: ' + self.args.model)
+            print('Best epoch: ' + str(self.hyper_epoch))
+            print('Best cnn: ' + str(self.cnn))
+            print('Best rnn: ' + str(self.rnn))
+            print('Best skip: ' + str(self.skip))
+            print('Best activator: ' + str(self.activation))
 
 
 
