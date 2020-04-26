@@ -41,6 +41,7 @@ class Model(nn.Module):
         c = x.view(-1, 1, self.P, self.m);
         c = F.relu(self.conv1(c));
         c = self.dropout(c);
+        c = torch.squeeze(c, 3);
         
         # RNN 
         r = c.permute(2, 0, 1).contiguous();

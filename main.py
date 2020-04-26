@@ -6,7 +6,8 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LSTNet
+from models import LSTM
+from models import AELSTM
 import numpy as np;
 import importlib
 
