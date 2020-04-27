@@ -2,6 +2,8 @@ import torch
 import numpy as np;
 from torch.autograd import Variable
 
+#import sys
+#import numpy
 
 def normal_std(x):
     return x.std() * np.sqrt((len(x) - 1.)/(len(x)))
@@ -81,8 +83,17 @@ class Data_utility(object):
             # Adds noise to the input values (X), that will be used for training. At the moment it will also affect validation X (evaluation) and test X set, is that okay?
             noise_factor = 0.5
             x_numpy_array = self.dat[start:end, :]
-            x_train_noisy = x_numpy_array + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=x_numpy_array.shape) 
+            #print("-------------Before:--------------")
+            #print(self.dat.shape)
+            #print(x_numpy_array)
+            noise_mult_factor = noise_factor * np.random.normal(loc=0.0, scale=1.0, size=x_numpy_array.shape)
+            x_train_noisy = x_numpy_array + noise_mult_factor
+            #print("mult factor")
+            #print(noise_mult_factor)
             x_train_noisy = np.clip(x_train_noisy, 0., 1.)
+            #print("-------------After:--------------")
+            #numpy.set_printoptions(threshold=sys.maxsize)
+            #print(x_train_noisy)
 
             X[i,:,:] = torch.from_numpy(x_train_noisy)
             #X[i,:,:] = torch.from_numpy(self.dat[start:end, :]);    # The input for training, the 168 values it uses as input

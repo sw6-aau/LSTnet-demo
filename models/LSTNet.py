@@ -21,19 +21,32 @@ class Model(nn.Module):
         self.hw = args.highway_window
         self.conv1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
 
-        self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
+        #self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
         
-        self.height_after_conv = (self.P - (self.Ck - 1))           # Conv layer changes shape by, Input size - (height - 1)
-        self.height_after_pooling = self.height_after_conv/2        # Max pooling 2x2 gives a input size reduction of input_size / 2
-        self.deconv_height = self.P - self.height_after_pooling + 1 # Transpose layer adds the height argument to the input shape -1, after convolution. So  
+        #self.height_after_conv = (self.P - (self.Ck - 1))           # Conv layer changes shape by, Input size - (height - 1)
+        #self.height_after_pooling = self.height_after_conv/2        # Max pooling 2x2 gives a input size reduction of input_size / 2
+        #self.deconv_height = self.P - self.height_after_pooling + 1 # Transpose layer adds the height argument to the input shape -1, after convolution. So  
                                                                     # in order to get the original size of self.P, we find the difference between height after the
                                                                     # pooling layer and adds 1 to negate the -1 that is subtracted when using the method.
         
-        self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
-        self.pool = nn.MaxPool2d(2)
+        #self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
+        #self.pool = nn.MaxPool2d(2)
         
+
+        self.encode1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); 
+        self.encode2 = nn.Conv2d(self.hidC, 25, kernel_size = (self.Ck, 1)); 
+        self.encode3 = nn.Conv2d(25, 12, kernel_size = (self.Ck, 1));
+        
+        #self.pool = nn.MaxPool2d(2)
+
+        self.decode3 = nn.ConvTranspose2d(12, 25, (self.Ck, 1))
+        self.decode2 = nn.ConvTranspose2d(25, self.hidC, (self.Ck, 1))
+        self.decode1 = nn.ConvTranspose2d(self.hidC, 1, (self.Ck, self.m))
+
+
         self.GRU1 = nn.GRU(self.hidC, self.hidR);
         self.dropout = nn.Dropout(p = args.dropout);
+
         if (self.skip > 0):
             self.GRUskip = nn.GRU(self.hidC, self.hidS);
             self.linear1 = nn.Linear(self.hidR + self.skip * self.hidS, self.m);
@@ -47,13 +60,26 @@ class Model(nn.Module):
         if (args.output_fun == 'tanh'):
             self.output = F.tanh;
 
+
+
     def forward(self, x):
         batch_size = x.size(0);
         ae = x.view(-1, 1, self.P, self.m);
-        # CNN Autoencoder
-        ae = F.relu(self.encode(ae))      # (128, 50, 163, 1)
-        ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
-        ae = F.relu(self.decode(ae))
+        
+        # CNN Autoencoder (3 layer)
+        #print(ae.shape)
+        ae = self.encode1(ae)   # width is 1 this layer, since 8 - (8 - 1) = 1
+        #print(ae.shape)
+        ae = self.encode2(ae)
+        ae = self.encode3(ae)
+        ae = self.decode3(ae)
+        ae = self.decode2(ae)
+        ae = self.decode1(ae)
+        
+        # Old autoencoder + dropped self.dropout
+        #ae = F.relu(self.encode(ae))      # (128, 50, 163, 1)
+        #ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
+        #ae = F.relu(self.decode(ae))
         ae_hw = torch.squeeze(ae, 1); 
         #ae = self.dropout(ae);
         
