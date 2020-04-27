@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+# OG LSTnet model
+# Do not fucking change
+# Make a new python file instead
 class Model(nn.Module):
     def __init__(self, args, data, cnn, rnn, skip, activation):
         super(Model, self).__init__()
