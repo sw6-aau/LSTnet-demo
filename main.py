@@ -58,7 +58,6 @@ class Trainer:
         self.activation = self.args.output_fun
 
         # Define spaces for hypertuning
-        self.evaluations = 5
         case0 = hp.uniform('epoch', 10, 250)
         case1 = hp.uniform('cnn', 30, 800)
         case2 = hp.uniform('rnn', 30, 800)
@@ -78,7 +77,8 @@ class Trainer:
             },
         ])
         cases = [case0, case1, case2, case3, case4]
-        self.active = ''
+
+        # Extra information after we done evaluating
         epochtrials = Trials()
         cnntrials = Trials()
         rnntrials = Trials()
@@ -86,6 +86,7 @@ class Trainer:
         actitrials = Trials()
 
         # Tune each parameter one by one
+        self.active = ''
         for x in range(0,len(cases)):
             if x == 0:
                 self.active = 'epoch'
@@ -117,6 +118,7 @@ class Trainer:
                 self.activation = best
                 actitrials = trials
 
+        # Print over-detailed evaluation results
         print('Model: ' + self.args.model)
         print('Best epoch: ' + str(self.hyper_epoch))
         print(epochtrials.trials)
@@ -128,9 +130,6 @@ class Trainer:
         print(skiptrials.trials)
         print('Best activator: ' + str(self.activation))
         print(actitrials.trials)
-
-
-
 
     # Passes the data-set as input to the model in small batches
     # After the data-set has been fully parsed, the output is compared to the original data-set.
@@ -252,7 +251,7 @@ class Trainer:
             self.tuned_train,
             space=case,
             algo=tpe.suggest,
-            max_evals=self.evaluations,
+            max_evals=self.args.evals,
             trials=trials
         )
         return best, trials
@@ -298,5 +297,6 @@ class Trainer:
         self.parser.add_argument('--L1Loss', type=bool, default=True)
         self.parser.add_argument('--normalize', type=int, default=2)
         self.parser.add_argument('--output_fun', type=str, default='sigmoid')
+        self.parser.add_argument('--evals', type=int, default=5)
 
 trainer = Trainer()
