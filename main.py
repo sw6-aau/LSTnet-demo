@@ -60,7 +60,7 @@ def train(data, X, Y, model, criterion, optim, batch_size):
     n_samples = 0;
     for X, Y in data.get_batches(X, Y, batch_size, True):
         model.zero_grad();
-        output = model(X);
+        output = model(X.float());
         scale = data.scale.expand(output.size(0), data.m)
         loss = criterion(output * scale, Y * scale);
         loss.backward();
@@ -153,11 +153,19 @@ optim = Optim.Optim(
 try:
     print('begin training');
     for epoch in range(1, args.epochs+1):
+        
+        noise_factor = 0.5
+        train_data = Data.train[0].data.numpy()
+        train_noisy = train_data + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=train_data.shape) 
+        train_noisy = np.clip(train_noisy, 0., 1.)
+        train_noisy_torch = torch.from_numpy(train_noisy)
+        
         epoch_start_time = time.time()
-        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
+        train_loss = train(Data, train_noisy_torch, Data.train[1], model, criterion, optim, args.batch_size)
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
         print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
         
+
         # Save the model if the validation loss is the best we've seen so far.
         if val_loss < best_val:
             with open(args.save, 'wb+') as f:

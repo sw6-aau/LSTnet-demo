@@ -54,6 +54,7 @@ class Model(nn.Module):
         c = F.relu(self.encode(c))      # (128, 50, 163, 1)
         c = self.pool(c)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
         c = F.relu(self.decode(c))  
+        ae_hw = torch.squeeze(c, 1);
         c = self.dropout(c);
         
         #CNN
@@ -98,7 +99,7 @@ class Model(nn.Module):
         # Also really important for keeping the general base structure of the input, since this part tries to adjusts weights to mimick the original input, without first 
         # deconstructing the input in a RNN hidden state....?
         if (self.hw > 0):
-            z = x[:, -self.hw:, :];                                     # (128, 24, 8) self.hw = 24 (normally 168, but looks at last 24 input values)
+            z = ae_hw[:, -self.hw:, :];                                     # (128, 24, 8) self.hw = 24 (normally 168, but looks at last 24 input values)
             z = z.permute(0,2,1).contiguous().view(-1, self.hw);        # (1024, 24)   1024 samples (128 samples with 8 stock markets flattened = 1024)
             z = self.highway(z);                                        # (1024, 1) In the documentation of linear's input shapes (not definition), 
                                                                         # the inputs can be whatever dimensions, as long as the last dimension is input size, 
