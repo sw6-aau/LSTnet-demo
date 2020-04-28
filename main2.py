@@ -70,7 +70,8 @@ def train(data, X, Y, model, criterion, optim, batch_size):
         optim.step()                       # Updates gradients https://discuss.pytorch.org/t/what-does-the-backward-function-do/9944
         total_loss += loss.data;                        # Adds the loss for this batch to the total loss
         n_samples += (output.size(0) * data.m)         # Increments the sample count with this sample size.
-    return total_loss2 / n_samples                       # Returns average loss of all samples
+        #print(total_loss/n_samples)
+    return total_loss / n_samples                       # Returns average loss of all samples
     
 parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
 parser.add_argument('--data', type=str, required=True,
