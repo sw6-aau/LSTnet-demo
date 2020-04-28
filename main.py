@@ -12,6 +12,7 @@ import importlib
 
 from utils import *;
 import Optim
+import torch.distributions as qwe
 
 # Passes the data-set as input to the model in small batches
 # After the data-set has been fully parsed, the output is compared to the original data-set.
@@ -28,16 +29,16 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
     for X, Y in data.get_batches(X, Y, batch_size, False):
         output = model(X);
         if predict is None:
-            predict = output;
+            predict = output[0];
             test = Y;
         else:
-            predict = torch.cat((predict,output));
+            predict = torch.cat((predict,output[0]));
             test = torch.cat((test, Y));
         
-        scale = data.scale.expand(output.size(0), data.m)
-        total_loss += evaluateL2(output * scale, Y * scale).data    # .data??
-        total_loss_l1 += evaluateL1(output * scale, Y * scale).data
-        n_samples += (output.size(0) * data.m);
+        scale = data.scale.expand(output[0].size(0), data.m)
+        total_loss += evaluateL2(output[0] * scale, Y * scale).data    # .data??
+        total_loss_l1 += evaluateL1(output[0] * scale, Y * scale).data
+        n_samples += (output[0].size(0) * data.m);
     
     rse = math.sqrt(total_loss / n_samples)/data.rse
     rae = (total_loss_l1/n_samples)/data.rae
@@ -59,14 +60,14 @@ def train(data, X, Y, model, criterion, optim, batch_size):
     total_loss = 0;
     n_samples = 0;
     for X, Y in data.get_batches(X, Y, batch_size, True):
-        model.zero_grad();          # Reset gradient
-        output = model(X);
-        scale = data.scale.expand(output.size(0), data.m)  # Expand the original scale tensor to have row size matching the batch size.
-        loss = criterion(output * scale, Y * scale);    # defines the loss / objective function, loss function arguments (input, target)
+        model.zero_grad();          # Reset gradient'
+        output = model(X.float());
+        scale = data.scale.expand(output[0].size(0), data.m)  # Expand the original scale tensor to have row size matching the batch size.
+        loss = criterion(output[0] * scale, Y * scale) + criterion(output[1] * scale, Y * scale);   # defines the loss / objective function, loss function arguments (input, target)
         loss.backward();                                # Computes the loss for every gradient / weight?
-        grad_norm = optim.step();                       # Updates gradients? https://discuss.pytorch.org/t/what-does-the-backward-function-do/9944
+        optim.step();                       # Updates gradients https://discuss.pytorch.org/t/what-does-the-backward-function-do/9944
         total_loss += loss.data;                        # Adds the loss for this batch to the total loss
-        n_samples += (output.size(0) * data.m);         # Increments the sample count with this sample size.
+        n_samples += (output[0].size(0) * data.m);         # Increments the sample count with this sample size.
     return total_loss / n_samples                       # Returns average loss of all samples
     
 parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
@@ -122,9 +123,10 @@ if torch.cuda.is_available():
         torch.cuda.manual_seed(args.seed)
 
 Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize);
-print(Data.rse);
+#print(Data.rse);
 
-model = eval(args.model).Model(args, Data);
+model = eval(args.model).Model(args, Data)
+model.float()
 
 if args.cuda:
     model.cuda()
@@ -154,10 +156,16 @@ try:
     print('begin training');
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size) # Changes the gradients and finds loss, X, Y from bachify
+        
+        noise_factor = 0.5
+        train_data = Data.train[0].data.numpy()
+        train_noisy = train_data + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=train_data.shape) 
+        train_noisy = np.clip(train_noisy, 0., 1.)
+        train_noisy_torch = torch.from_numpy(train_noisy)
+        
+        train_loss = train(Data, train_noisy_torch, Data.train[1], model, criterion, optim, args.batch_size) # Changes the gradients and finds loss, X, Y from bachify
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size); # Evaluates loss according to RSE RAE CORR fomulars
         print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
-        
         # Save the model if the validation loss is the best we've seen so far.
         if val_loss < best_val:
             with open(args.save, 'wb+') as f:
