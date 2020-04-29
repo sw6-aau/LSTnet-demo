@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LSTNet
+from models import AENet
 import numpy as np
 import importlib
 import numpy
@@ -14,7 +14,7 @@ import sys
 
 import pandas as pd
 
-from utils_predict import *
+from utils import *
 import Optim
 
 
@@ -30,7 +30,7 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
     
     # Iterates through all the batches as inputs.
     for X, Y in data.get_batches(X, Y, batch_size, False):
-        output = model(X);
+        output = model(X.float());
         if predict is None:
             predict = output
             test = Y
@@ -108,10 +108,10 @@ if torch.cuda.is_available():
     else:
         torch.cuda.manual_seed(args.seed)
 
-Data = Data_utility(args.data, 0.0, 0.0, args.cuda, args.horizon, args.window, args.normalize)
+Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize)
 print(Data.rse)
 
-model = eval(args.model).Model(args, Data)
+model = eval("AENet").Model(args, Data)
 
 if args.cuda:
     model.cuda()
@@ -134,6 +134,15 @@ optim = Optim.Optim(
     model.parameters(), args.optim, args.lr, args.clip,
 )
 
+def add_noise(data):
+        noise_factor = 0.5
+        train_data = data.data.numpy()
+        train_noisy = train_data + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=train_data.shape) 
+        train_noisy = np.clip(train_noisy, 0., 1.)
+        train_noisy_torch = torch.from_numpy(train_noisy)
+        return train_noisy_torch
+
+test_noisy = add_noise(Data.test[0])
 
 # Load the best saved model.
 # Have changed the train- and validation to 0, so it testes on all the data
@@ -141,8 +150,17 @@ with open(args.save, 'rb+') as f:
     checkpoint = torch.load(f, map_location='cpu')
 model.load_state_dict(checkpoint['model_state_dict'])
 optim.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-test_acc, test_rae, test_corr, prediction_tensor  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size)
+test_acc, test_rae, test_corr, prediction_tensor  = evaluate(Data, test_noisy, Data.test[1], model, evaluateL2, evaluateL1, args.batch_size)
 print("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
+
+clean_input = Data.test[1].data.cpu().numpy()
+inputpd = pd.DataFrame(clean_input)
+inputpd.to_csv("clean_input.csv", index=False)
+
+remove_input_window = torch.zeros((test_noisy.shape[0], test_noisy.shape[2])); 
+remove_input_window[:,:] = test_noisy[:,-1,:]
+inputpd = pd.DataFrame(remove_input_window.data.cpu().numpy())
+inputpd.to_csv("noisy_input.csv", index=False)
 
 df = pd.DataFrame(prediction_tensor)
 df.to_csv("output.csv", index=False)
