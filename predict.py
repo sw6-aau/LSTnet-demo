@@ -11,8 +11,9 @@ import numpy as np
 import importlib
 import numpy
 import sys
+import pandas as pd
 
-from utils_predict import *
+from utils import *
 import Optim
 
 
@@ -106,7 +107,7 @@ if torch.cuda.is_available():
     else:
         torch.cuda.manual_seed(args.seed)
 
-Data = Data_utility(args.data, 0.0, 0.0, args.cuda, args.horizon, args.window, args.normalize)
+Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize)
 print(Data.rse)
 
 model = eval(args.model).Model(args, Data)
@@ -142,5 +143,10 @@ model.load_state_dict(checkpoint['model_state_dict'])
 optim.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 test_acc, test_rae, test_corr, prediction_tensor  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size)
 print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
-numpy.set_printoptions(threshold=sys.maxsize)   # Makes it print the whole numpy array otherwise it will only print the start and end
-#print(prediction_tensor) # Out commented due to other testing
+
+
+inputpd = pd.DataFrame(Data.test[1].data.cpu().numpy())
+inputpd.to_csv("input.csv", index=False)
+
+df = pd.DataFrame(prediction_tensor)
+df.to_csv("output.csv", index=False)

@@ -47,7 +47,6 @@ class Model(nn.Module):
 
         
         #skip-rnn
-        
         if (self.skip > 0):
             s = c[:,:, int(-self.pt * self.skip):].contiguous();
             s = s.view(batch_size, self.hidC, self.pt, self.skip);
