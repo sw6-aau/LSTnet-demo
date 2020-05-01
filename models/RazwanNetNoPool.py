@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# Current version Razwans, meaning it feeds the RNN the pooled CNN layer that is trained by the autoencoder. Loss from autoencoder and rnn is added together.
 class Model(nn.Module):
     def __init__(self, args, data):
         super(Model, self).__init__()
@@ -14,7 +13,7 @@ class Model(nn.Module):
         self.hidS = args.hidSkip;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
-         # (168 - 6) / 24 = 6.75 rounded 6 # If they have made a mistake here it would make a lot more sense. Then 168 - 6 would be
+        self.pt = (self.P - self.Ck)/self.skip  # (168 - 6) / 24 = 6.75 rounded 6 # If they have made a mistake here it would make a lot more sense. Then 168 - 6 would be
                                                 # sequence length after being processed by CNN layer, but the actual shape after CNN layer was 163 (i.e. - 5), but that can be unintuitive to
                                                 # determine, since it is sequence length - (Ck - 1) after being processed by CNN layer not sequence length - Ck.
                                                 # This would make sense of the RNN-skip arguments, they want to feed the input to the RNN with the knoweledge
@@ -33,7 +32,6 @@ class Model(nn.Module):
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
         self.pool = nn.MaxPool2d(2)
         
-        self.pt = (self.height_after_pooling - self.Ck)/self.skip 
 
         #self.encode1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); 
         #self.encode2 = nn.Conv2d(self.hidC, 25, kernel_size = (self.Ck, 1)); 
@@ -78,8 +76,8 @@ class Model(nn.Module):
         
         # Old autoencoder + dropped self.dropout
         c = F.relu(self.encode(c))      # (128, 50, 163, 1)
-        c = self.pool(c)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
         
+        reconstructed = self.pool(c)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
         reconstructed = F.relu(self.decode(c))
         reconstructed_squeezed = torch.squeeze(reconstructed, 1);
         temp = reconstructed_squeezed.contiguous()
@@ -88,8 +86,7 @@ class Model(nn.Module):
         #ae = self.dropout(ae);
         
         #CNN
-        #c = F.relu(self.conv1(ae)) # (128, 1, 168, 50) (7*24=168)
-        c = self.dropout(c); # Think about dropout placement
+        c = self.dropout(c);
         c = torch.squeeze(c, 3);
 
         # RNN 
