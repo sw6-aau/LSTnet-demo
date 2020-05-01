@@ -6,8 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LSTM
-from models import AELSTM
+from models import LSTM, AELSTM, AENet, TAENet
 import numpy as np;
 import importlib
 
@@ -17,10 +16,9 @@ from utils import *;
 import Optim
 import numpy as np
 
-
 class Trainer:
     def __init__(self):
-        # Initial setup
+        # Initial setup with arguments
         self.parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
         self.set_args()
         self.args = self.parser.parse_args()
@@ -38,7 +36,6 @@ class Trainer:
         self.Data = Data_utility(self.args.data, 0.6, 0.2, self.args.cuda, self.args.horizon, self.args.window, self.args.normalize);
         print(self.Data.rse);
 
-
         if self.args.L1Loss:
             self.criterion = nn.L1Loss(size_average=False);
         else:
@@ -50,6 +47,7 @@ class Trainer:
             self.evaluateL1 = self.evaluateL1.cuda();
             self.evaluateL2 = self.evaluateL2.cuda();
 
+
         # Define initial parameter values
         self.hyper_epoch = self.args.epochs
         self.cnn = self.args.hidCNN
@@ -57,155 +55,66 @@ class Trainer:
         self.skip = self.args.hidSkip
         self.activation = self.args.output_fun
 
-        # Define spaces for hypertuning
-        case0 = hp.uniform('epoch', 10, 250)
-        case1 = hp.uniform('cnn', 30, 800)
-        case2 = hp.uniform('rnn', 30, 800)
-        case3 = hp.uniform('skip', 2, 10)
-        case4 = hp.choice('activation_type', [
-            {
-                'type': 'None',
-            },
-            {
-                'type': 'sigmoid',
-            },
-            {
-                'type': 'tanh',
-            },
-            {
-                'type': 'relu',
-            },
-        ])
-        cases = [case0, case1, case2, case3, case4]
+        search_space = self.create_spaces()
 
         # Extra information after we done evaluating
-        epochtrials = Trials()
-        cnntrials = Trials()
-        rnntrials = Trials()
-        skiptrials = Trials()
-        actitrials = Trials()
+        self.epochtrials = Trials()
+        self.cnntrials = Trials()
+        self.rnntrials = Trials()
+        self.skiptrials = Trials()
+        self.actitrials = Trials()
 
         # Tune each parameter one by one
         self.active = ''
-        for x in range(0,len(cases)):
-            if x == 0:
-                self.active = 'epoch'
-            elif x == 1:
-                self.active = 'cnn'
-            elif x == 2:
-                self.active = 'rnn'
-            elif x == 3:
-                self.active = 'skip'
-            elif x == 4:
-                self.active = 'activation_type'
+        for x in range(0,len(search_space)):
+            current_space = search_space[x]
+            self.active = current_space
 
-            best, trials = self.tune(cases[x])
+            best, trials = self.tune(current_space)
             print(best)
 
-            if x == 0:
-                self.hyper_epoch = int(best['epoch'])
-                epochtrials = trials
-            elif x == 1:
-                self.cnn = int(best['cnn'])
-                cnntrials = trials
-            elif x == 2:
-                self.rnn = int(best['rnn'])
-                rnntrials = trials
-            elif x == 3:
-                self.skip = int(best['skip'])
-                skiptrials = trials
-            elif x == 4:
-                self.activation = best
-                actitrials = trials
+            self.manage_results(best, trials)
+        self.print_results()
 
-        # Print over-detailed evaluation results
-        print('Model: ' + self.args.model)
-        print('Best epoch: ' + str(self.hyper_epoch))
-        print(epochtrials.trials)
-        print('Best cnn: ' + str(self.cnn))
-        print(cnntrials.trials)
-        print('Best rnn: ' + str(self.rnn))
-        print(rnntrials.trials)
-        print('Best skip: ' + str(self.skip))
-        print(skiptrials.trials)
-        print('Best activator: ' + str(self.activation))
-        print(actitrials.trials)
+        
+    
+    #####################
+    # HYPERTUNING LOGIC #
+    #####################
+    
+    # Sets up and performs the actual tuning
+    def tune(self, case):
+        set_trials = Trials()
+        best = fmin(
+            self.tuned_train,
+            space=case,
+            algo=tpe.suggest,
+            max_evals=self.args.evals,
+            trials=set_trials
+        )
+        return best, set_trials
 
-    # Passes the data-set as input to the model in small batches
-    # After the data-set has been fully parsed, the output is compared to the original data-set.
-    def evaluate(self, data, X, Y, model, evaluateL2, evaluateL1, batch_size):
-        model.eval();
-        total_loss = 0;
-        total_loss_l1 = 0;
-        n_samples = 0;
-        predict = None;
-        test = None;
-        
-        # Iterates through all the batches as inputs.
-        for X, Y in data.get_batches(X, Y, batch_size, False):
-            output = model(X);
-            if predict is None:
-                predict = output;
-                test = Y;
-            else:
-                predict = torch.cat((predict,output));
-                test = torch.cat((test, Y));
-            
-            # Extra modifications and loss calculation
-            scale = data.scale.expand(output.size(0), data.m)
-            total_loss += evaluateL2(output * scale, Y * scale).data
-            total_loss_l1 += evaluateL1(output * scale, Y * scale).data
-            n_samples += (output.size(0) * data.m);
-        
-        rse = math.sqrt(total_loss / n_samples)/data.rse
-        rae = (total_loss_l1/n_samples)/data.rae
-        
-        # Calculates correlation
-        # No clue how it actually achieves it
-        predict = predict.data.cpu().numpy();
-        Ytest = test.data.cpu().numpy();
-        sigma_p = (predict).std(axis = 0);
-        sigma_g = (Ytest).std(axis = 0);
-        mean_p = predict.mean(axis = 0)
-        mean_g = Ytest.mean(axis = 0)
-        index = (sigma_g!=0);
-        correlation = ((predict - mean_p) * (Ytest - mean_g)).mean(axis = 0)/(sigma_p * sigma_g);
-        correlation = (correlation[index]).mean();
-        return rse, rae, correlation;
-
-    def train(self, data, X, Y, model, criterion, optim, batch_size):
-        model.train();
-        total_loss = 0;
-        n_samples = 0;
-        for X, Y in data.get_batches(X, Y, batch_size, True):
-            model.zero_grad();
-            output = model(X);
-            scale = data.scale.expand(output.size(0), data.m)
-            loss = criterion(output * scale, Y * scale);
-            loss.backward();
-            grad_norm = optim.step();
-            total_loss += loss.data;
-            n_samples += (output.size(0) * data.m);
-        return total_loss / n_samples
-        
     # Tunes hyperparameters and trains the model
+    # Adjust this function anytime a new hyperparameter is added
     def tuned_train(self, tuning):
         # Adjusts hyperparameter to the value for this specific iteration
-        if self.active == 'epoch':
+        if self.active == self.case_epoch:
             self.hyper_epoch = int(tuning)
-        elif self.active == 'cnn':
+        elif self.active == self.case_cnn:
             self.cnn = int(tuning)
-        elif self.active == 'rnn':
+        elif self.active == self.case_rnn:
             self.rnn = int(tuning)
-        elif self.active == 'skip':
+        elif self.active == self.case_skip:
             self.skip = int(tuning)
-        elif self.active == 'activation_type':
+        elif self.active == self.case_activation:
             self.activation = tuning['type']
-            print('We activatin:')
-            print(self.activation)
             
+        print(self.args.model)
         # Prepares the model for training
-        model = eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation);
+        if self.args.model == 'AENet':
+            model = eval(self.args.model).Model(self.args, self.Data, self.cnn);
+        else:
+            model = eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation);
 
         nParams = sum([p.nelement() for p in model.parameters()])
         print('* number of parameters: %d' % nParams)
@@ -213,12 +122,12 @@ class Trainer:
         if self.args.cuda:
             model.cuda()
             
-        best_val = 10000000;
 
         optim = Optim.Optim(
             model.parameters(), self.args.optim, self.args.lr, self.args.clip
         )
 
+        best_val = 10000000;
         # Performs training for a given hypertuning iteration
         for epoch in range(1, self.hyper_epoch + 1):
             epoch_start_time = time.time()
@@ -244,20 +153,118 @@ class Trainer:
 
         return {'loss': test_acc, 'status': STATUS_OK}
 
-    # Sets up and performs the actual tuning
-    def tune(self, case):
-        trials = Trials()
-        best = fmin(
-            self.tuned_train,
-            space=case,
-            algo=tpe.suggest,
-            max_evals=self.args.evals,
-            trials=trials
-        )
-        return best, trials
+
+
+    ##########################
+    # NETWORK TRAINING LOGIC #
+    ##########################
+
+    def train(self, data, X, Y, model, criterion, optim, batch_size):
+        model.train();
+        total_loss = 0;
+        n_samples = 0;
+        for X, Y in data.get_batches(X, Y, batch_size, True):
+            model.zero_grad();
+            output = model(X);
+            scale = data.scale.expand(output.size(0), data.m)
+            loss = criterion(output * scale, Y * scale);
+            loss.backward();
+            grad_norm = optim.step();
+            total_loss += loss.data;
+            n_samples += (output.size(0) * data.m);
+        return total_loss / n_samples
+
+    def evaluate(self, data, X, Y, model, evaluateL2, evaluateL1, batch_size):
+        model.eval();
+        total_loss = 0;
+        total_loss_l1 = 0;
+        n_samples = 0;
+        predict = None;
+        test = None;
+        
+        # Iterates through all the batches as inputs.
+        for X, Y in data.get_batches(X, Y, batch_size, False):
+            output = model(X);
+            if predict is None:
+                predict = output;
+                test = Y;
+            else:
+                predict = torch.cat((predict,output));
+                test = torch.cat((test, Y));
+            
+            # Loss calculation
+            scale = data.scale.expand(output.size(0), data.m)
+            total_loss += evaluateL2(output * scale, Y * scale).data
+            total_loss_l1 += evaluateL1(output * scale, Y * scale).data
+            n_samples += (output.size(0) * data.m);
+        
+        rse = math.sqrt(total_loss / n_samples)/data.rse
+        rae = (total_loss_l1/n_samples)/data.rae
+        
+        # Calculates correlation
+        predict = predict.data.cpu().numpy();
+        Ytest = test.data.cpu().numpy();
+        sigma_p = (predict).std(axis = 0);
+        sigma_g = (Ytest).std(axis = 0);
+        mean_p = predict.mean(axis = 0)
+        mean_g = Ytest.mean(axis = 0)
+        index = (sigma_g!=0);
+        correlation = ((predict - mean_p) * (Ytest - mean_g)).mean(axis = 0)/(sigma_p * sigma_g);
+        correlation = (correlation[index]).mean();
+        return rse, rae, correlation;
+
+
+
+    ###################
+    # SETUP-FUNCTIONS #
+    ###################
+
+    # Selects which set of spaces to use
+    # Spaces are defined under SPACE FUNCTIONS
+    def create_spaces(self):
+        print('In create_spaces, model: ' + self.args.model)
+        if self.args.model == 'AENet':
+            return self.AENet_spaces()
+        else:
+            return self.standard_spaces()
+        
+
+    # Sets up variables for later use in displaying results
+    # If you add new parameters, remember to update this
+    def manage_results(self, best, trials):
+            if self.active == self.case_epoch:
+                self.hyper_epoch = int(best['epoch'])
+                self.epochtrials = trials
+            elif self.active == self.case_cnn:
+                self.cnn = int(best['cnn'])
+                self.cnntrials = trials
+            elif self.active == self.case_rnn:
+                self.rnn = int(best['rnn'])
+                self.rnntrials = trials
+            elif self.active == self.case_skip:
+                self.skip = int(best['skip'])
+                self.skiptrials = trials
+            elif self.active == self.case_activation:
+                self.activation = best
+                self.actitrials = trials
+            
+
+    # Prints results of each parameter at the end of tuning
+    # If you add new parameters, remember to update this
+    def print_results(self):
+        print('Model: ' + self.args.model)
+        print('Best epoch: ' + str(self.hyper_epoch))
+        print(self.epochtrials.trials)
+        print('Best cnn: ' + str(self.cnn))
+        print(self.cnntrials.trials)
+        print('Best rnn: ' + str(self.rnn))
+        print(self.rnntrials.trials)
+        print('Best skip: ' + str(self.skip))
+        print(self.skiptrials.trials)
+        print('Best activator: ' + str(self.activation))
+        print(self.actitrials.trials)
 
     # Defines all arguments that are given in shell scripts and the like.
-    # Has its own dedicated function for the sake of readability
     def set_args(self):
         self.parser.add_argument('--data', type=str, required=True,
                             help='location of the data file')
@@ -298,5 +305,43 @@ class Trainer:
         self.parser.add_argument('--normalize', type=int, default=2)
         self.parser.add_argument('--output_fun', type=str, default='sigmoid')
         self.parser.add_argument('--evals', type=int, default=5)
+
+
+    
+    ###################
+    # SPACE FUNCTIONS #
+    ###################
+    
+    def standard_spaces(self):
+        print('Creating standard_spaces')
+        self.case_epoch = hp.uniform('epoch', 10, 250)
+        self.case_cnn = hp.uniform('cnn', 30, 800)
+        self.case_rnn = hp.uniform('rnn', 30, 800)
+        self.case_skip = hp.uniform('skip', 2, 10)
+        self.case_activation = hp.choice('activation_type', [
+            {
+                'type': 'None',
+            },
+            {
+                'type': 'sigmoid',
+            },
+            {
+                'type': 'tanh',
+            },
+            {
+                'type': 'relu',
+            },
+        ])
+        return [self.case_epoch, self.case_cnn, self.case_rnn, self.case_skip, self.case_activation] # Adjust this to change the order in which parameters are tuned
+    
+    def AENet_spaces(self):
+        print('Creating AENet_spaces')
+        self.case_epoch = hp.uniform('epoch', 10, 250)
+        self.case_cnn = hp.uniform('cnn', 30, 800)
+        return [self.case_epoch, self.case_cnn] # Adjust this to change the order in which parameters are tuned
+
+    ################
+    # END OF CLASS #
+    ################
 
 trainer = Trainer()
