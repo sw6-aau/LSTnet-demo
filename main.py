@@ -25,7 +25,7 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
     
     # Iterates through all the batches as inputs.
     for X, Y in data.get_batches(X, Y, batch_size, False):
-        output = model(X);
+        output = model(X.float());
         if predict is None:
             predict = output;
             test = Y;
@@ -38,7 +38,8 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
         total_loss += evaluateL2(output * scale, Y * scale).data
         total_loss_l1 += evaluateL1(output * scale, Y * scale).data
         n_samples += (output.size(0) * data.m);
-    
+    print("Loss")
+    print(total_loss)
     rse = math.sqrt(total_loss / n_samples)/data.rse
     rae = (total_loss_l1/n_samples)/data.rae
     
@@ -108,6 +109,9 @@ parser.add_argument('--hidSkip', type=int, default=5)
 parser.add_argument('--L1Loss', type=bool, default=True)
 parser.add_argument('--normalize', type=int, default=2)
 parser.add_argument('--output_fun', type=str, default='sigmoid')
+# AE model
+parser.add_argument('--ae_model', type=str, default='linear',
+                    help='')
 args = parser.parse_args()
 
 args.cuda = args.gpu is not None
@@ -149,19 +153,25 @@ optim = Optim.Optim(
     model.parameters(), args.optim, args.lr, args.clip,
 )
 
+def add_noise(data):
+        noise_factor = 0.2
+        train_data = data.data.numpy()
+        train_noisy = train_data + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=train_data.shape) 
+        train_noisy = np.clip(train_noisy, 0., 1.)
+        train_noisy_torch = torch.from_numpy(train_noisy)
+        return train_noisy_torch
+
 # At any point you can hit Ctrl + C to break out of training early.
 try:
     print('begin training');
     for epoch in range(1, args.epochs+1):
-        
-        noise_factor = 0.5
-        train_data = Data.train[0].data.numpy()
-        train_noisy = train_data + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=train_data.shape) 
-        train_noisy = np.clip(train_noisy, 0., 1.)
-        train_noisy_torch = torch.from_numpy(train_noisy)
-        
         epoch_start_time = time.time()
-        train_loss = train(Data, train_noisy_torch, Data.train[1], model, criterion, optim, args.batch_size)
+
+        train_noisy = add_noise(Data.train[0])
+        valid_noisy = add_noise(Data.valid[0])
+        test_noisy = add_noise(Data.test[0])        
+        
+        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size)
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size);
         print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
         

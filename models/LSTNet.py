@@ -21,7 +21,7 @@ class Model(nn.Module):
         self.hw = args.highway_window
         self.conv1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
 
-        self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
+        #self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
         
         self.height_after_conv = (self.P - (self.Ck - 1))           # Conv layer changes shape by, Input size - (height - 1)
         self.height_after_pooling = self.height_after_conv/2        # Max pooling 2x2 gives a input size reduction of input_size / 2
@@ -29,8 +29,8 @@ class Model(nn.Module):
                                                                     # in order to get the original size of self.P, we find the difference between height after the
                                                                     # pooling layer and adds 1 to negate the -1 that is subtracted when using the method.
         
-        self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
-        self.pool = nn.MaxPool2d(2)
+        #self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
+        #self.pool = nn.MaxPool2d(2)
         
         self.GRU1 = nn.GRU(self.hidC, self.hidR);
         self.dropout = nn.Dropout(p = args.dropout);
@@ -46,19 +46,55 @@ class Model(nn.Module):
             self.output = F.sigmoid;
         if (args.output_fun == 'tanh'):
             self.output = F.tanh;
+        if(args.ae_model == "linear"):
+            print("helloooooooooooooooooooooooooooooooooooooo")
+
+    
+        # Deep convolutional autoencoder layers
+        self.encode1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); 
+        self.encode2 = nn.Conv2d(self.hidC, 25, kernel_size = (self.Ck, 1)); 
+        self.encode3 = nn.Conv2d(25, 12, kernel_size = (self.Ck, 1));
+        
+        #self.pool = nn.MaxPool2d(2)
+
+        self.decode3 = nn.ConvTranspose2d(12, 25, (self.Ck, 1))
+        self.decode2 = nn.ConvTranspose2d(25, self.hidC, (self.Ck, 1))
+        self.decode1 = nn.ConvTranspose2d(self.hidC, 1, (self.Ck, self.m))
+
+
+        # Linear autoencoder layers
+        #self.encoder_hidden_layer = nn.Linear(8,32)
+        #self.encoder_output_layer = nn.Linear(32, 32)
+        #self.decoder_hidden_layer = nn.Linear(32, 32)
+        #self.decoder_output_layer = nn.Linear(32, 8)
 
     def forward(self, x):
         batch_size = x.size(0);
-        c = x.view(-1, 1, self.P, self.m);
+        ae = x.view(-1, 1, self.P, self.m);
+
+        # Deep CNN autoencoder (Current best RSE: 0.3843)
+        ae = torch.relu(self.encode1(ae))   # width is 1 this layer, since 8 - (8 - 1) = 1
+        ae = torch.relu(self.encode2(ae)) 
+        ae = torch.relu(self.encode3(ae)) 
+        ae = torch.relu(self.decode3(ae)) 
+        ae = torch.relu(self.decode2(ae)) 
+        ae = torch.relu(self.decode1(ae))
+
+        # Linear layer autoencoder (Current best RSE: 0.2933)
+        #ae = torch.relu(self.encoder_hidden_layer(ae))
+        #ae = torch.relu(self.encoder_output_layer(ae)) 
+        #ae = torch.relu(self.decoder_hidden_layer(ae))
+        #ae = torch.relu(self.decoder_output_layer(ae)) 
+
         # CNN Autoencoder
-        c = F.relu(self.encode(c))      # (128, 50, 163, 1)
-        c = self.pool(c)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
-        c = F.relu(self.decode(c))  
-        ae_hw = torch.squeeze(c, 1);
-        c = self.dropout(c);
-        
+        #c = F.relu(self.encode(c))      # (128, 50, 163, 1)
+        #c = self.pool(c)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
+        #c = F.relu(self.decode(c))  
+        ae_hw = torch.squeeze(ae, 1);
+        #c = self.dropout(c);
+
         #CNN
-        c = F.relu(self.conv1(c)) # (128, 1, 168, 50) (7*24=168)
+        c = F.relu(self.conv1(ae)) # (128, 1, 168, 50) (7*24=168)
         c = self.dropout(c);
         c = torch.squeeze(c, 3);
 
@@ -99,7 +135,7 @@ class Model(nn.Module):
         # Also really important for keeping the general base structure of the input, since this part tries to adjusts weights to mimick the original input, without first 
         # deconstructing the input in a RNN hidden state....?
         if (self.hw > 0):
-            z = ae_hw[:, -self.hw:, :];                                     # (128, 24, 8) self.hw = 24 (normally 168, but looks at last 24 input values)
+            z = ae_hw[:, -self.hw:, :];                                 # (128, 24, 8) self.hw = 24 (normally 168, but looks at last 24 input values)
             z = z.permute(0,2,1).contiguous().view(-1, self.hw);        # (1024, 24)   1024 samples (128 samples with 8 stock markets flattened = 1024)
             z = self.highway(z);                                        # (1024, 1) In the documentation of linear's input shapes (not definition), 
                                                                         # the inputs can be whatever dimensions, as long as the last dimension is input size, 
