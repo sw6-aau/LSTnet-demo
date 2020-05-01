@@ -77,9 +77,10 @@ class Model(nn.Module):
         # Old autoencoder + dropped self.dropout
         ae = F.relu(self.encode(ae))      # (128, 50, 163, 1)
         ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
-        ae = F.relu(self.decode(ae))
-        ae_hw = torch.squeeze(ae, 1);
-        temp = ae_hw.contiguous()
+        
+        reconstructed = F.relu(self.decode(ae))
+        reconstructed_squeezed = torch.squeeze(reconstructed, 1);
+        temp = reconstructed_squeezed.contiguous()
         reconstructed = torch.zeros((batch_size, self.m)); 
         reconstructed[:,:] = temp[:,-1,:]
         #ae = self.dropout(ae);

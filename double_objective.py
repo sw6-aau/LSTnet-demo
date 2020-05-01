@@ -6,55 +6,70 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
+from models import LSTNet
 from models import AENet
-import numpy as np
+import numpy as np;
 import importlib
-import numpy
-import sys
 
-import pandas as pd
-
-from utils import *
+from utils import *;
 import Optim
-
+import torch.distributions as qwe
 
 # Passes the data-set as input to the model in small batches
 # After the data-set has been fully parsed, the output is compared to the original data-set.
 def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
-    model.eval()
-    total_loss = 0
-    total_loss_l1 = 0
-    n_samples = 0
-    predict = None
-    test = None
+    model.eval()       # Sets the model to evaluation mode
+    total_loss = 0;
+    total_loss_l1 = 0;
+    n_samples = 0;
+    predict = None;
+    test = None;
     
-    # Iterates through all the batches as inputs.
+    # Iterates through all the batches as inputs and uses the latest model on it. 
+    # Appends the batches of X and Y to big tensors, and finds the total loss according to both metrics, RSE and RAE.
     for X, Y in data.get_batches(X, Y, batch_size, False):
-        output = model(X.float());
+        output = model(X)
         if predict is None:
-            predict = output
-            test = Y
+            predict = output[0];
+            test = Y;
         else:
-            predict = torch.cat((predict,output))
+            predict = torch.cat((predict,output[0]))
             test = torch.cat((test, Y))
-        # Extra modifications and loss calculation
-        scale = data.scale.expand(output.size(0), data.m)
-        total_loss += evaluateL2(output * scale, Y * scale).data
-        total_loss_l1 += evaluateL1(output * scale, Y * scale).data
-        n_samples += (output.size(0) * data.m);
+        
+        scale = data.scale.expand(output[0].size(0), data.m)
+        total_loss += evaluateL2(output[0] * scale, Y * scale).data    # .data??
+        total_loss_l1 += evaluateL1(output[0] * scale, Y * scale).data
+        n_samples += (output[0].size(0) * data.m)
+    
     rse = math.sqrt(total_loss / n_samples)/data.rse
     rae = (total_loss_l1/n_samples)/data.rae
+    
     # Calculates correlation
     predict = predict.data.cpu().numpy()
     Ytest = test.data.cpu().numpy()
-    sigma_p = predict.std(axis = 0)
-    sigma_g = Ytest.std(axis = 0)
+    sigma_p = (predict).std(axis = 0)
+    sigma_g = (Ytest).std(axis = 0)
     mean_p = predict.mean(axis = 0)
     mean_g = Ytest.mean(axis = 0)
-    index = sigma_g!=0
+    index = (sigma_g!=0)
     correlation = ((predict - mean_p) * (Ytest - mean_g)).mean(axis = 0)/(sigma_p * sigma_g)
     correlation = (correlation[index]).mean()
-    return rse, rae, correlation, predict       # Has added so it also returns the concatenated predicted matrix
+    return rse, rae, correlation;
+
+def train(data, X, Y, model,  criterion, optim, batch_size):
+    model.train()                  # Sets the model to training mode
+    total_loss = 0;
+    n_samples = 0;
+    for X, Y in data.get_batches(X, Y, batch_size, True):
+        model.zero_grad()          # Reset gradient'
+        output = model(X.float())
+        scale = data.scale.expand(output[0].size(0), data.m)  # Expand the original scale tensor to have row size matching the batch size.
+        loss = criterion(output[0] * scale, Y * scale) + criterion(output[1] * scale, Y * scale)   # defines the loss / objective function, loss function arguments (input, target)
+        loss.backward()                                # Computes the loss for every gradient / weight?
+        optim.step()                       # Updates gradients https://discuss.pytorch.org/t/what-does-the-backward-function-do/9944
+        total_loss += loss.data;                        # Adds the loss for this batch to the total loss
+        n_samples += (output[0].size(0) * data.m)         # Increments the sample count with this sample size.
+    return total_loss / n_samples                       # Returns average loss of all samples
     
 parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
 parser.add_argument('--data', type=str, required=True,
@@ -109,9 +124,10 @@ if torch.cuda.is_available():
         torch.cuda.manual_seed(args.seed)
 
 Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize)
-print(Data.rse)
+#print(Data.rse)
 
-model = eval("AENet").Model(args, Data)
+model = eval(args.model).Model(args, Data)
+model.float()
 
 if args.cuda:
     model.cuda()
@@ -130,37 +146,48 @@ if args.cuda:
     evaluateL1 = evaluateL1.cuda()
     evaluateL2 = evaluateL2.cuda()
     
+    
+best_val = 10000000
 optim = Optim.Optim(
     model.parameters(), args.optim, args.lr, args.clip,
 )
 
-def add_noise(data):
+# At any point you can hit Ctrl + C to break out of training early.
+try:
+    print('begin training')
+    for epoch in range(1, args.epochs+1):
+        epoch_start_time = time.time()
+        
         noise_factor = 0.5
-        train_data = data.data.numpy()
+        train_data = Data.train[0].data.numpy()
         train_noisy = train_data + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=train_data.shape) 
         train_noisy = np.clip(train_noisy, 0., 1.)
         train_noisy_torch = torch.from_numpy(train_noisy)
-        return train_noisy_torch
+        
+        train_loss = train(Data, train_noisy_torch, Data.train[1], model, criterion, optim, args.batch_size) # Changes the gradients and finds loss, X, Y from bachify
+        val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size) # Evaluates loss according to RSE RAE CORR fomulars
+        print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
+        # Save the model if the validation loss is the best we've seen so far.
+        if val_loss < best_val:
+            with open(args.save, 'wb+') as f:
+                torch.save({
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optim.optimizer.state_dict()
+                }, f)
+            best_val = val_loss
+        if epoch % 5 == 0:
+            test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size)
+            print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
-#test_noisy = add_noise(Data.test[0])
+except KeyboardInterrupt:
+    print('-' * 89)
+    print('Exiting from training early')
 
 # Load the best saved model.
-# Have changed the train- and validation to 0, so it testes on all the data
 with open(args.save, 'rb+') as f:
-    checkpoint = torch.load(f, map_location='cpu')
+    checkpoint = torch.load(f)
 model.load_state_dict(checkpoint['model_state_dict'])
 optim.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-test_acc, test_rae, test_corr, prediction_tensor  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size)
-print("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
+test_acc, test_rae, test_corr  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size)
+print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
-clean_input = Data.test[1].data.cpu().numpy()
-inputpd = pd.DataFrame(clean_input)
-inputpd.to_csv("clean_input.csv", index=False)
-
-remove_input_window = torch.zeros((Data.test[0].shape[0], test_noisy.shape[2])); 
-remove_input_window[:,:] = Data.test[0][:,-1,:]
-inputpd = pd.DataFrame(remove_input_window.data.cpu().numpy())
-inputpd.to_csv("noisy_input.csv", index=False)
-
-df = pd.DataFrame(prediction_tensor)
-df.to_csv("output.csv", index=False)
