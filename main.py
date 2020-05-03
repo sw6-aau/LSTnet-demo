@@ -65,6 +65,7 @@ class Trainer:
         self.actitrials = Trials()
 
         # Tune each parameter one by one
+        self.absolute_best = 10000000
         self.active = ''
         for x in range(0,len(search_space)):
             current_space = search_space[x]
@@ -151,6 +152,11 @@ class Trainer:
         test_acc, test_rae, test_corr  = self.evaluate(self.Data, self.Data.test[0], self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
         print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
+        if test_acc < self.absolute_best:
+            with open(self.args.bestsave, 'wb+') as f:
+                torch.save(model, f)
+            self.absolute_best = test_acc
+        
         return {'loss': test_acc, 'status': STATUS_OK}
 
 
@@ -294,7 +300,8 @@ class Trainer:
         self.parser.add_argument('--log_interval', type=int, default=2000, metavar='N',
                             help='report interval')
         self.parser.add_argument('--save', type=str,  default='model/model.pt',
-                            help='path to save the final model')
+                            help='path to save a temporary model')
+        self.parser.add_argument('--bestsave', type=str, default='model/best.pt')
         self.parser.add_argument('--cuda', type=str, default=True)
         self.parser.add_argument('--optim', type=str, default='adam')
         self.parser.add_argument('--lr', type=float, default=0.001)
