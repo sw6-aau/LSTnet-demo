@@ -6,13 +6,11 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LSTNet
-from models import AENet
+from models import CorrLSTNetSimilarReturn
 import numpy as np;
 import importlib
 
-from utils import *;
-from utils_razwan import *;
+from utils_corr import *
 import Optim
 import torch.distributions as qwe
 
@@ -57,33 +55,22 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
     correlation = (correlation[index]).mean()
     return rse, rae, correlation;
 
-def train(data, X, Y, model, model2, criterion, optim, optim2, batch_size):
+def train(data, X, Y, model,  criterion, optim, batch_size):
     model.train()                  # Sets the model to training mode
-    model2.train()   
     total_loss = 0;
-    total_loss2 = 0;
     n_samples = 0;
     for X, Y in data.get_batches(X, Y, batch_size, True):
         model.zero_grad()          # Reset gradient'
         output = model(X.float())
+        # 
+
         scale = data.scale.expand(output[0].size(0), data.m)  # Expand the original scale tensor to have row size matching the batch size.
         loss = criterion(output[0] * scale, Y * scale) + criterion(output[1] * scale, Y * scale)   # defines the loss / objective function, loss function arguments (input, target)
         loss.backward()                                # Computes the loss for every gradient / weight?
         optim.step()                       # Updates gradients https://discuss.pytorch.org/t/what-does-the-backward-function-do/9944
         total_loss += loss.data;                        # Adds the loss for this batch to the total loss
         n_samples += (output[0].size(0) * data.m)         # Increments the sample count with this sample size.
-        
-        #Model2
-        model2.zero_grad()          # Reset gradient'
-        output2 = model2(X.float())
-        scale2 = data.scale.expand(output2.size(0), data.m)  # Expand the original scale tensor to have row size matching the batch size.
-        # Check that scale is empty when first used like i expect it to be when used the first time in the for loop
-        loss2 = criterion(output2 * scale2, Y * scale2)   # defines the loss / objective function, loss function arguments (input, target)
-        loss2.backward()                                # Computes the loss for every gradient / weight?
-        optim2.step()                       # Updates gradients https://discuss.pytorch.org/t/what-does-the-backward-function-do/9944
-        total_loss2 += loss2.data;                        # Adds the loss for this batch to the total loss
-        #n_samples += (output2[0].size(0) * data.m)         # Increments the sample count with this sample size.
-    return total_loss2 / n_samples                       # Returns average loss of all samples
+    return total_loss / n_samples                       # Returns average loss of all samples
     
 parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
 parser.add_argument('--data', type=str, required=True,
@@ -136,14 +123,12 @@ if torch.cuda.is_available():
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
     else:
         torch.cuda.manual_seed(args.seed)
+
 Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize)
 #print(Data.rse)
 
-model = eval(args.model).Model(args, Data)
+model = eval("CorrLSTNetSimilarReturn").Model(args, Data)
 model.float()
-
-model2 = eval("AENet").Model(args, Data)
-model2.float()
 
 if args.cuda:
     model.cuda()
@@ -168,24 +153,14 @@ optim = Optim.Optim(
     model.parameters(), args.optim, args.lr, args.clip,
 )
 
-best_val2 = 10000000;
-optim2 = Optim.Optim(
-    model.parameters(), args.optim, args.lr, args.clip,
-)
-
 # At any point you can hit Ctrl + C to break out of training early.
 try:
     print('begin training')
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         
-        noise_factor = 0.5
-        train_data = Data.train[0].data.numpy()
-        train_noisy = train_data + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=train_data.shape) 
-        train_noisy = np.clip(train_noisy, 0., 1.)
-        train_noisy_torch = torch.from_numpy(train_noisy)
-        
-        train_loss = train(Data, train_noisy_torch, Data.train[1], model, model2, criterion, optim, optim2, args.batch_size) # Changes the gradients and finds loss, X, Y from bachify
+
+        train_loss = train(Data, Data.train[0], Data.train[1], model, criterion, optim, args.batch_size) # Changes the gradients and finds loss, X, Y from bachify
         val_loss, val_rae, val_corr = evaluate(Data, Data.valid[0], Data.valid[1], model, evaluateL2, evaluateL1, args.batch_size) # Evaluates loss according to RSE RAE CORR fomulars
         print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
         # Save the model if the validation loss is the best we've seen so far.
