@@ -266,7 +266,7 @@ class Trainer:
     # Spaces are defined under SPACE FUNCTIONS
     def create_spaces(self):
         print('In create_spaces, model: ' + self.args.model)
-        if self.args.model == 'AENet':
+        if self.args.model == 'AENet' or self.args.model == 'TAENet':
             return self.AENet_spaces()
         else:
             return self.standard_spaces()
