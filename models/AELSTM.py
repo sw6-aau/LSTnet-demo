@@ -58,6 +58,7 @@ class Model(nn.Module):
         c = F.relu(self.encode(c))
         print(c.shape)
         c = self.pool(c)
+        print(c.shape)
         c = F.relu(self.decode(c))  
         #CNN
         c = F.relu(self.change_hidden(c))
