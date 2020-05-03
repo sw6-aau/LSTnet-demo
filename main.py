@@ -69,13 +69,7 @@ class Trainer:
     # Adjust this function anytime a new hyperparameter is added
     def tuned_train(self, tuning):
         self.active_parameter(tuning)
-            
-        print(self.args.model)
-        # Prepares the model for training
-        if self.args.model == 'AENet':
-            model = eval(self.args.model).Model(self.args, self.Data, self.cnn);
-        else:
-            model = eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation);
+        model = self.model_maker()
 
         nParams = sum([p.nelement() for p in model.parameters()])
         print('* number of parameters: %d' % nParams)
@@ -111,7 +105,7 @@ class Trainer:
         test_acc, test_rae, test_corr  = self.evaluate(self.Data, self.Data.test[0], self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
         print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
-        ''' This shit meant for saving the absolute best model, but doesn't quite work for reasons I cannot fathom
+        ''' This shit is meant for saving the absolute best model, but doesn't quite work for reasons I cannot fathom
         if test_acc < self.absolute_best:
             with open(self.args.bestsave, 'wb+') as f:
                 torch.save(model, f)
@@ -262,14 +256,6 @@ class Trainer:
     # HYPEROPT CONFIGURATION #
     ##########################
 
-    # Selects which set of spaces to use
-    # Spaces are defined under SPACE FUNCTIONS
-    def create_spaces(self):
-        print('In create_spaces, model: ' + self.args.model)
-        if ((self.args.model == 'AENet') or (self.args.model == 'TAENet')):
-            return self.AENet_spaces()
-        else:
-            return self.standard_spaces()
 
     # Initializes values from args
     # See set_args() for a list of accepted args
@@ -349,6 +335,27 @@ class Trainer:
     ###################
     # SPACE FUNCTIONS #
     ###################
+
+    # Selects which set of spaces to use
+    # Spaces are defined under SPACE FUNCTIONS
+    def create_spaces(self):
+        print('In create_spaces, model: ' + self.args.model)
+        if self.input_cnn():
+            return self.AENet_spaces()
+        else:
+            return self.standard_spaces()
+
+    def model_maker(self):
+        if self.input_cnn():
+            return eval(self.args.model).Model(self.args, self.Data, self.cnn);
+        else:
+            return eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation);
+
+    # Add your model here if the only parameter it needs tuned is cnn size
+    def input_cnn(self):
+        if self.args.model == 'AENet' or self.args.model == 'TAENet':
+            return True
+        else: return False
     
     def standard_spaces(self):
         print('Creating standard_spaces')
