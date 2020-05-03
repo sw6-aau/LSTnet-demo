@@ -111,10 +111,12 @@ class Trainer:
         test_acc, test_rae, test_corr  = self.evaluate(self.Data, self.Data.test[0], self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
         print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
+        ''' This shit meant for saving the absolute best model, but doesn't quite work for reasons I cannot fathom
         if test_acc < self.absolute_best:
             with open(self.args.bestsave, 'wb+') as f:
                 torch.save(model, f)
             self.absolute_best = test_acc
+        '''
         
         return {'loss': test_acc, 'status': STATUS_OK}
 
