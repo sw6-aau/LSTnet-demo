@@ -21,48 +21,18 @@ class Trainer:
         # Initial setup with arguments
         self.parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
         self.set_args()
-        self.args = self.parser.parse_args()
-        self.args.cuda = self.args.gpu is not None
-        if self.args.cuda:
-            torch.cuda.set_device(self.args.gpu)
-        # Set the random seed manually for reproducibility.
-        torch.manual_seed(self.args.seed)
-        if torch.cuda.is_available():
-            if not self.args.cuda:
-                print("WARNING: You have a CUDA device, so you should probably run with --cuda")
-            else:
-                torch.cuda.manual_seed(self.args.seed)
+        self.enable_gpu()
+        self.set_seed()
 
         self.Data = Data_utility(self.args.data, 0.6, 0.2, self.args.cuda, self.args.horizon, self.args.window, self.args.normalize);
         print(self.Data.rse);
 
-        if self.args.L1Loss:
-            self.criterion = nn.L1Loss(size_average=False);
-        else:
-            self.criterion = nn.MSELoss(size_average=False);
-        self.evaluateL2 = nn.MSELoss(size_average=False);
-        self.evaluateL1 = nn.L1Loss(size_average=False)
-        if self.args.cuda:
-            self.criterion = self.criterion.cuda()
-            self.evaluateL1 = self.evaluateL1.cuda();
-            self.evaluateL2 = self.evaluateL2.cuda();
+        self.set_loss_functions()
 
-
-        # Define initial parameter values
-        self.hyper_epoch = self.args.epochs
-        self.cnn = self.args.hidCNN
-        self.rnn = self.args.hidRNN
-        self.skip = self.args.hidSkip
-        self.activation = self.args.output_fun
-
+        # Hyperopt configuration
+        self.set_initial_values()
         search_space = self.create_spaces()
-
-        # Extra information after we done evaluating
-        self.epochtrials = Trials()
-        self.cnntrials = Trials()
-        self.rnntrials = Trials()
-        self.skiptrials = Trials()
-        self.actitrials = Trials()
+        self.trials_setup()
 
         # Tune each parameter one by one
         self.absolute_best = 10000000
@@ -83,7 +53,7 @@ class Trainer:
     # HYPERTUNING LOGIC #
     #####################
     
-    # Sets up and performs the actual tuning
+    # Performs hyperopt's tuning process
     def tune(self, case):
         set_trials = Trials()
         best = fmin(
@@ -98,17 +68,7 @@ class Trainer:
     # Tunes hyperparameters and trains the model
     # Adjust this function anytime a new hyperparameter is added
     def tuned_train(self, tuning):
-        # Adjusts hyperparameter to the value for this specific iteration
-        if self.active == self.case_epoch:
-            self.hyper_epoch = int(tuning)
-        elif self.active == self.case_cnn:
-            self.cnn = int(tuning)
-        elif self.active == self.case_rnn:
-            self.rnn = int(tuning)
-        elif self.active == self.case_skip:
-            self.skip = int(tuning)
-        elif self.active == self.case_activation:
-            self.activation = tuning['type']
+        self.active_parameter(tuning)
             
         print(self.args.model)
         # Prepares the model for training
@@ -123,9 +83,8 @@ class Trainer:
         if self.args.cuda:
             model.cuda()
             
-
         optim = Optim.Optim(
-            model.parameters(), self.args.optim, self.args.lr, self.args.clip
+            model.parameters(), self.args.optim, self.lr, self.args.clip
         )
 
         best_val = 10000000;
@@ -225,50 +184,32 @@ class Trainer:
     # SETUP-FUNCTIONS #
     ###################
 
-    # Selects which set of spaces to use
-    # Spaces are defined under SPACE FUNCTIONS
-    def create_spaces(self):
-        print('In create_spaces, model: ' + self.args.model)
-        if self.args.model == 'AENet':
-            return self.AENet_spaces()
+    def enable_gpu(self):
+        self.args = self.parser.parse_args()
+        self.args.cuda = self.args.gpu is not None
+        if self.args.cuda:
+            torch.cuda.set_device(self.args.gpu)
+
+    # Set the random seed manually for reproducibility.
+    def set_seed(self):
+        torch.manual_seed(self.args.seed)
+        if torch.cuda.is_available():
+            if not self.args.cuda:
+                print("WARNING: You have a CUDA device, so you should probably run with --cuda")
+            else:
+                torch.cuda.manual_seed(self.args.seed)
+
+    def set_loss_functions(self):
+        if self.args.L1Loss:
+            self.criterion = nn.L1Loss(size_average=False);
         else:
-            return self.standard_spaces()
-        
-
-    # Sets up variables for later use in displaying results
-    # If you add new parameters, remember to update this
-    def manage_results(self, best, trials):
-            if self.active == self.case_epoch:
-                self.hyper_epoch = int(best['epoch'])
-                self.epochtrials = trials
-            elif self.active == self.case_cnn:
-                self.cnn = int(best['cnn'])
-                self.cnntrials = trials
-            elif self.active == self.case_rnn:
-                self.rnn = int(best['rnn'])
-                self.rnntrials = trials
-            elif self.active == self.case_skip:
-                self.skip = int(best['skip'])
-                self.skiptrials = trials
-            elif self.active == self.case_activation:
-                self.activation = best
-                self.actitrials = trials
-            
-
-    # Prints results of each parameter at the end of tuning
-    # If you add new parameters, remember to update this
-    def print_results(self):
-        print('Model: ' + self.args.model)
-        print('Best epoch: ' + str(self.hyper_epoch))
-        print(self.epochtrials.trials)
-        print('Best cnn: ' + str(self.cnn))
-        print(self.cnntrials.trials)
-        print('Best rnn: ' + str(self.rnn))
-        print(self.rnntrials.trials)
-        print('Best skip: ' + str(self.skip))
-        print(self.skiptrials.trials)
-        print('Best activator: ' + str(self.activation))
-        print(self.actitrials.trials)
+            self.criterion = nn.MSELoss(size_average=False);
+        self.evaluateL2 = nn.MSELoss(size_average=False);
+        self.evaluateL1 = nn.L1Loss(size_average=False)
+        if self.args.cuda:
+            self.criterion = self.criterion.cuda()
+            self.evaluateL1 = self.evaluateL1.cuda();
+            self.evaluateL2 = self.evaluateL2.cuda();
 
     # Defines all arguments that are given in shell scripts and the like.
     def set_args(self):
@@ -314,6 +255,94 @@ class Trainer:
         self.parser.add_argument('--evals', type=int, default=5)
 
 
+
+    ##########################
+    # HYPEROPT CONFIGURATION #
+    ##########################
+
+    # Selects which set of spaces to use
+    # Spaces are defined under SPACE FUNCTIONS
+    def create_spaces(self):
+        print('In create_spaces, model: ' + self.args.model)
+        if self.args.model == 'AENet':
+            return self.AENet_spaces()
+        else:
+            return self.standard_spaces()
+
+    # Initializes values from args
+    # See set_args() for a list of accepted args
+    # Update this function and all functions below if you add/remove parameters
+    def set_initial_values(self):
+        self.hyper_epoch = self.args.epochs
+        self.cnn = self.args.hidCNN
+        self.rnn = self.args.hidRNN
+        self.skip = self.args.hidSkip
+        self.activation = self.args.output_fun
+        self.lr = self.args.lr
+
+    # Adjusts the value of the parameter that is currently being tuned
+    def active_parameter(self, tuning):
+        if self.active == self.case_epoch:
+            self.hyper_epoch = int(tuning)
+        elif self.active == self.case_cnn:
+            self.cnn = int(tuning)
+        elif self.active == self.case_rnn:
+            self.rnn = int(tuning)
+        elif self.active == self.case_skip:
+            self.skip = int(tuning)
+        elif self.active == self.case_activation:
+            self.activation = tuning['type']
+        elif self.active == self.case_lr:
+            self.lr = tuning
+
+    # Sets up trials for end-of-optimization reviewing
+    def trials_setup(self):
+        self.epochtrials = Trials()
+        self.cnntrials = Trials()
+        self.rnntrials = Trials()
+        self.skiptrials = Trials()
+        self.actitrials = Trials()
+        self.lrtrials = Trials()
+
+    # Sets up variables for later use in displaying results
+    def manage_results(self, best, trials):
+        if self.active == self.case_epoch:
+            self.hyper_epoch = int(best['epoch'])
+            self.epochtrials = trials
+        elif self.active == self.case_cnn:
+            self.cnn = int(best['cnn'])
+            self.cnntrials = trials
+        elif self.active == self.case_rnn:
+            self.rnn = int(best['rnn'])
+            self.rnntrials = trials
+        elif self.active == self.case_skip:
+            self.skip = int(best['skip'])
+            self.skiptrials = trials
+        elif self.active == self.case_activation:
+            self.activation = best
+            self.actitrials = trials
+        elif self.active == self.case_lr:
+            self.lr = best
+            self.lrtrials = trials
+            
+    # Prints results of each parameter at the end of tuning
+    # If you add new parameters, remember to update this
+    def print_results(self):
+        print('Model: ' + self.args.model)
+        print('Best epoch: ' + str(self.hyper_epoch))
+        print(self.epochtrials.trials)
+        print('Best cnn: ' + str(self.cnn))
+        print(self.cnntrials.trials)
+        print('Best rnn: ' + str(self.rnn))
+        print(self.rnntrials.trials)
+        print('Best skip: ' + str(self.skip))
+        print(self.skiptrials.trials)
+        print('Best activator: ' + str(self.activation))
+        print(self.actitrials.trials)
+        print('Best Learning Rate: ' + str(self.lr))
+        print(self.lrtrials.trials)
+
+
     
     ###################
     # SPACE FUNCTIONS #
@@ -322,6 +351,7 @@ class Trainer:
     def standard_spaces(self):
         print('Creating standard_spaces')
         self.case_epoch = hp.uniform('epoch', 10, 250)
+        self.case_lr = hp.uniform('lr', 0.0001, 0.01)
         self.case_cnn = hp.uniform('cnn', 30, 800)
         self.case_rnn = hp.uniform('rnn', 30, 800)
         self.case_skip = hp.uniform('skip', 2, 10)
@@ -339,7 +369,7 @@ class Trainer:
                 'type': 'relu',
             },
         ])
-        return [self.case_epoch, self.case_cnn, self.case_rnn, self.case_skip, self.case_activation] # Adjust this to change the order in which parameters are tuned
+        return [self.case_epoch, self.case_lr, self.case_cnn, self.case_rnn, self.case_skip, self.case_activation] # Adjust this to change the order in which parameters are tuned
     
     def AENet_spaces(self):
         print('Creating AENet_spaces')
