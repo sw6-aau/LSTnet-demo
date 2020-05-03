@@ -242,7 +242,7 @@ class Trainer:
                             help='report interval')
         self.parser.add_argument('--save', type=str,  default='model/model.pt',
                             help='path to save a temporary model')
-        self.parser.add_argument('--bestsave', type=str, default='model/best.pt')
+        self.parser.add_argument('--bestsave', type=str, default='model/model.pt')
         self.parser.add_argument('--cuda', type=str, default=True)
         self.parser.add_argument('--optim', type=str, default='adam')
         self.parser.add_argument('--lr', type=float, default=0.001)
