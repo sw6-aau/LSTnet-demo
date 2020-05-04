@@ -26,7 +26,7 @@ class Model(nn.Module):
                                                                     # pooling layer and adds 1 to negate the -1 that is subtracted when using the method.
         
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
-        self.pool = nn.MaxPool2d(2, 2)
+        self.pool = nn.MaxPool2d(1, 4)
 
 
     def forward(self, x):
