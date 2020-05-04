@@ -3,12 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Model(nn.Module):
-    def __init__(self, args, data, cnn):
+    def __init__(self, args, data):
         super(Model, self).__init__()
         self.use_cuda = args.cuda
         self.P = args.window;
         self.m = data.m
-        self.hidC = cnn;
+        self.hidR = args.hidRNN;
+        self.hidC = args.hidCNN;
+        self.hidS = args.hidSkip;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
         self.pt = (self.P - self.Ck)/self.skip  # (168 - 6) / 24 = 6.75 rounded 6 # If they have made a mistake here it would make a lot more sense. Then 168 - 6 would be
@@ -26,7 +28,7 @@ class Model(nn.Module):
                                                                     # pooling layer and adds 1 to negate the -1 that is subtracted when using the method.
         
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
-        self.pool = nn.MaxPool2d(2)
+        self.pool = nn.MaxPool2d(2, 2)
 
 
     def forward(self, x):
@@ -38,7 +40,7 @@ class Model(nn.Module):
         ae = F.relu(self.encode(ae))      # (128, 50, 163, 1)
         ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
         ae = F.relu(self.decode(ae))
+        #print(ae.shape)
         ae_hw = torch.squeeze(ae, 1);
         temp = ae_hw.contiguous()
-        #ae = self.dropout(ae);
         return temp[:,-1,:];
