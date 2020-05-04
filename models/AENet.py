@@ -19,7 +19,7 @@ class Model(nn.Module):
                                                 # This would make sense of the RNN-skip arguments, they want to feed the input to the RNN with the knoweledge
                                                 # that the inputs are 24 hours in a day, so they divide the window length with 24 hours.
 
-        self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m-1)); # Kernel size = 6 * 8
+        self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
         
         self.height_after_conv = (self.P - (self.Ck - 1))           # Conv layer changes shape by, Input size - (height - 1)
         self.height_after_pooling = self.height_after_conv/2        # Max pooling 2x2 gives a input size reduction of input_size / 2
@@ -28,7 +28,7 @@ class Model(nn.Module):
                                                                     # pooling layer and adds 1 to negate the -1 that is subtracted when using the method.
         
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
-        self.pool = nn.MaxPool2d(2)
+        self.pool = nn.MaxPool2d(2, 2)
         
 
         #self.encode1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); 
@@ -56,19 +56,11 @@ class Model(nn.Module):
         
         # Old autoencoder + dropped self.dropout
         ae = F.relu(self.encode(ae))      # (128, 50, 163, 1)
-        #print(ae.shape)
         ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
-        #print(ae.shape)
         ae = F.relu(self.decode(ae))
         #print(ae.shape)
         ae_hw = torch.squeeze(ae, 1);
         temp = ae_hw.contiguous()
-        #reconstructed = torch.zeros((batch_size, self.m)); 
-        #reconstructed[:,:] = temp[:,-1,:]
-        #temp = ae_hw.contiguous()
-        #reconstructed = torch.zeros((batch_size, self.m)); 
-        #reconstructed[:,:] = temp[:,-1,:]
-        #ae = self.dropout(ae);
         return temp[:,-1,:];
      
         

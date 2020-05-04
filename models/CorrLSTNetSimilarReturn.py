@@ -36,17 +36,6 @@ class Model(nn.Module):
         
         self.pt = (self.height_after_pooling - self.Ck)/self.skip 
 
-        #self.encode1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); 
-        #self.encode2 = nn.Conv2d(self.hidC, 25, kernel_size = (self.Ck, 1)); 
-        #self.encode3 = nn.Conv2d(25, 12, kernel_size = (self.Ck, 1));
-        
-        #self.pool = nn.MaxPool2d(2)
-
-        #self.decode3 = nn.ConvTranspose2d(12, 25, (self.Ck, 1))
-        #self.decode2 = nn.ConvTranspose2d(25, self.hidC, (self.Ck, 1))
-        #self.decode1 = nn.ConvTranspose2d(self.hidC, 1, (self.Ck, self.m))
-
-
         self.GRU1 = nn.GRU(self.hidC, self.hidR);
         self.dropout = nn.Dropout(p = args.dropout);
 
@@ -69,49 +58,16 @@ class Model(nn.Module):
         # Y (128, 8)    (128, 168, 8) (128, 50, 163, 1)
         batch_size = x.size(0);
         c = x.view(-1, 1, self.P, self.m)
-        # CNN Autoencoder (3 layer)
-        #ae = self.encode1(ae)   # width is 1 this layer, since 8 - (8 - 1) = 1
-        #ae = self.encode2(ae)
-        #ae = self.encode3(ae)
-        #ae = self.decode3(ae)
-        #ae = self.decode2(ae)
-        #ae = self.decode1(ae)
-        
+
         # Old autoencoder + dropped self.dropout
         c = F.relu(self.encode(c))      # (128, 50, 163, 1)
         c = self.pool(c)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
         
         reconstructed = F.relu(self.decode(c))
-        # Squeezes 1 from height dimension after convolutional layer
-        reconstructed_squeezed = torch.squeeze(reconstructed, 1);
-        # Removes input window dimension
-        reconstructed_no_window = torch.zeros((batch_size, self.m)); 
-        reconstructed_no_window[:,:] = reconstructed_squeezed[:,-1,:]
-        #print(reconstructed_squeezed.shape)
-        # Expiremnt of adding copy of input window back from reconstructed (128, 8) to (128, 168, 8)
+        reconstructed = torch.squeeze(reconstructed, 1);         # Squeezes 1 from height dimension after convolutional layer
+        print(str(reconstructed.shape) + str(type(reconstructed)))
 
-        test = torch.zeros((batch_size, self.m, self.P)); 
-        
-        x_numpy = x.data.cpu().numpy()
-        reconstructed_numpy = reconstructed_no_window.data.cpu().numpy()
-        #print(x_numpy)
-        #print(type(reconstructed_no_window_numpy))
-
-        result = np.expand_dims(reconstructed_numpy, axis=1) + x_numpy
-        print(result.shape)
-
-        #x2 = np.array([reconstructed_numpy[0], x_numpy[1], reconstructed_numpy[1]])
-        #print(reconstructed_numpy.shape)
-        #test[0][2] = x[1]
-
-        #test[:,:,:] = reconstructed_squeezed[:,:, x[0][1]]
-        
-        #for i in range(len(x[0])):
-            #test[:, i, :] =    
-        #ae = self.dropout(ae);
-        
         #CNN
-        #c = F.relu(self.conv1(ae)) # (128, 1, 168, 50) (7*24=168)
         c = self.dropout(c); # Think about dropout placement
         c = torch.squeeze(c, 3);
 
@@ -163,8 +119,14 @@ class Model(nn.Module):
         if (self.output):
             res = self.output(res);
             
-        
-        return res, reconstructed_no_window;
+        x_numpy = x.data.cpu().numpy()
+        RNN_res_numpy = res.data.cpu().numpy()
+        res = np.expand_dims(RNN_res_numpy, axis=1) + x_numpy   # Now returns 168 dimension that is the same as it was in x input 
+        # Back to torch
+        res_torch = torch.zeros((batch_size, self.m)); 
+        res_torch = torch.from_numpy(res)
+
+        return res_torch, reconstructed;
      
         
         

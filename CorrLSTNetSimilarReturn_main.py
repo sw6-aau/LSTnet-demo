@@ -62,10 +62,13 @@ def train(data, X, Y, model,  criterion, optim, batch_size):
     for X, Y in data.get_batches(X, Y, batch_size, True):
         model.zero_grad()          # Reset gradient'
         output = model(X.float())
-        # 
-
-        scale = data.scale.expand(output[0].size(0), data.m)  # Expand the original scale tensor to have row size matching the batch size.
-        loss = criterion(output[0] * scale, Y * scale) + criterion(output[1] * scale, Y * scale)   # defines the loss / objective function, loss function arguments (input, target)
+        # Add 168 dimension to RNN output and compare it with X
+        scale = data.scale.expand(output[0].size(0), 168, data.m)  # Expand the original scale tensor to have row size matching the batch size.
+        AE_loss = criterion(output[1] * scale, X * scale)
+        RNN_loss = criterion(output[0] * scale, X * scale)
+        loss = AE_loss + RNN_loss
+        print(AE_loss)
+        print(RNN_loss)
         loss.backward()                                # Computes the loss for every gradient / weight?
         optim.step()                       # Updates gradients https://discuss.pytorch.org/t/what-does-the-backward-function-do/9944
         total_loss += loss.data;                        # Adds the loss for this batch to the total loss
