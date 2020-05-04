@@ -256,10 +256,9 @@ class Trainer:
     # HYPEROPT CONFIGURATION #
     ##########################
 
-
     # Initializes values from args
     # See set_args() for a list of accepted args
-    # Update this function and all functions below if you add/remove parameters
+    # Update this function and all functions below if you want to add/remove parameters
     def set_initial_values(self):
         self.hyper_epoch = self.args.epochs
         self.cnn = self.args.hidCNN
@@ -345,6 +344,7 @@ class Trainer:
         else:
             return self.standard_spaces()
 
+    # Creates a model for use in tuned_train()
     def model_maker(self):
         if self.input_cnn():
             return eval(self.args.model).Model(self.args, self.Data, self.cnn);

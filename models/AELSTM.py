@@ -52,13 +52,9 @@ class Model(nn.Module):
         batch_size = x.size(0);
         print(self.P - (self.P - (self.Ck - 1))/2 + 1)
         c = x.view(-1, 1, self.P, self.m);
-        print('FUUUUUUUUCK YOOOOOOOOOOOOU')
-        print(c.shape)
         # CNN Autoencoder
         c = F.relu(self.encode(c))
-        print(c.shape)
         c = self.pool(c)
-        print(c.shape)
         c = F.relu(self.decode(c))  
         #CNN
         c = F.relu(self.change_hidden(c))
