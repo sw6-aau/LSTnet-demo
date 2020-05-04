@@ -26,7 +26,7 @@ class Model(nn.Module):
 
         self.change_hidden = nn.Linear(in_features=self.m, out_features=self.hidC)
         
-        self.pool = nn.MaxPool2d(2)
+        self.pool = nn.MaxPool2d(1, 4)
         
         self.GRU1 = nn.GRU(self.hidC, self.hidR);
         self.dropout = nn.Dropout(p = args.dropout);
