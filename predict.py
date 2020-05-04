@@ -157,7 +157,7 @@ clean_input = Data.test[1].data.cpu().numpy()
 inputpd = pd.DataFrame(clean_input)
 inputpd.to_csv("clean_input.csv", index=False)
 
-remove_input_window = torch.zeros((Data.test[0].shape[0], test_noisy.shape[2])); 
+remove_input_window = torch.zeros((Data.test[0].shape[0], test_noisy.shape[2]))
 remove_input_window[:,:] = Data.test[0][:,-1,:]
 inputpd = pd.DataFrame(remove_input_window.data.cpu().numpy())
 inputpd.to_csv("noisy_input.csv", index=False)

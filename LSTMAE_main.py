@@ -10,9 +10,9 @@ from models import LSTNet
 from models import AENet
 from models import AENet
 from models import RazwanNetNoPool
+from models import LSTMAENet
 import numpy as np;
 import importlib
-
 from utils import *;
 import Optim
 import torch.distributions as qwe
