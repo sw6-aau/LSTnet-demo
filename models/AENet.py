@@ -3,14 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class Model(nn.Module):
-    def __init__(self, args, data):
+    def __init__(self, args, data, cnn):
         super(Model, self).__init__()
         self.use_cuda = args.cuda
         self.P = args.window;
         self.m = data.m
-        self.hidR = args.hidRNN;
-        self.hidC = args.hidCNN;
-        self.hidS = args.hidSkip;
+        self.hidC = cnn;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
         self.pt = (self.P - self.Ck)/self.skip  # (168 - 6) / 24 = 6.75 rounded 6 # If they have made a mistake here it would make a lot more sense. Then 168 - 6 would be
