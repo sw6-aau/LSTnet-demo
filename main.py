@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LSTM, AELSTM, AENet, TAENet
+from models import LST, AELST, AENet, TAENet
 import numpy as np;
 import importlib
 
@@ -211,7 +211,7 @@ class Trainer:
     def set_args(self):
         self.parser.add_argument('--data', type=str, required=True,
                             help='location of the data file')
-        self.parser.add_argument('--model', type=str, default='LSTM',
+        self.parser.add_argument('--model', type=str, default='LST',
                             help='')
         self.parser.add_argument('--hidCNN', type=int, default=100,
                             help='number of CNN hidden units')
