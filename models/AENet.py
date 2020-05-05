@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 class Model(nn.Module):
     def __init__(self, args, data, cnn):
@@ -20,13 +21,14 @@ class Model(nn.Module):
         self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
         
         self.height_after_conv = (self.P - (self.Ck - 1))           # Conv layer changes shape by, Input size - (height - 1)
-        self.height_after_pooling = self.height_after_conv/2        # Max pooling 2x2 gives a input size reduction of input_size / 2
+        self.pooling_factor = 4
+        self.height_after_pooling = int(math.ceil(float(self.height_after_conv)/self.pooling_factor))        # Max pooling 2x2 gives a input size reduction of input_size / 2
         self.deconv_height = self.P - self.height_after_pooling + 1 # Transpose layer adds the height argument to the input shape -1, after convolution. So  
                                                                     # in order to get the original size of self.P, we find the difference between height after the
                                                                     # pooling layer and adds 1 to negate the -1 that is subtracted when using the method.
         
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
-        self.pool = nn.MaxPool2d(1, 4)
+        self.pool = nn.MaxPool2d(1, self.pooling_factor)
 
 
     def forward(self, x):
@@ -38,7 +40,6 @@ class Model(nn.Module):
         ae = F.relu(self.encode(ae))      # (128, 50, 163, 1)
         ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
         ae = F.relu(self.decode(ae))
-        #print(ae.shape)
         ae_hw = torch.squeeze(ae, 1);
         temp = ae_hw.contiguous()
         return temp[:,-1,:];

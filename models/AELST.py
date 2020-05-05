@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 class Model(nn.Module):
     def __init__(self, args, data, cnn, rnn, skip, activation):
@@ -19,14 +20,15 @@ class Model(nn.Module):
         self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
         
         self.height_after_conv = (self.P - (self.Ck - 1))
-        self.height_after_pooling = self.height_after_conv/2
+        self.pooling_factor = 2
+        self.height_after_pooling = int(math.ceil(float(self.height_after_conv)/self.pooling_factor)) 
         self.deconv_height = self.P - self.height_after_pooling + 1 
         
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
 
         self.change_hidden = nn.Linear(in_features=self.m, out_features=self.hidC)
         
-        self.pool = nn.MaxPool2d(1, 4)
+        self.pool = nn.MaxPool2d(1, self.pooling_factor)
         
         self.GRU1 = nn.GRU(self.hidC, self.hidR);
         self.dropout = nn.Dropout(p = args.dropout);
@@ -50,7 +52,6 @@ class Model(nn.Module):
 
     def forward(self, x):
         batch_size = x.size(0);
-        print(self.P - (self.P - (self.Ck - 1))/2 + 1)
         c = x.view(-1, 1, self.P, self.m);
         # CNN Autoencoder
         c = F.relu(self.encode(c))
@@ -59,9 +60,7 @@ class Model(nn.Module):
         #CNN
         c = F.relu(self.change_hidden(c))
         c = self.dropout(c);
-        print(c.shape)
         c = torch.squeeze(c, 1)
-        print(c.shape)
         c = c.permute(0, 2, 1)     # Permute magic, to old format
         
         # RNN 
