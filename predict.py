@@ -145,4 +145,4 @@ test_acc, test_rae, test_corr, prediction_tensor  = evaluate(Data, Data.test[0],
 print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
 df = pd.DataFrame(prediction_tensor)
-df.to_csv("output.csv", index=False)
+df.to_csv("output", index=False)
