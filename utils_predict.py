@@ -48,23 +48,32 @@ class Data_utility(object):
             
         
     def _split(self, test):
-        test_set = range(self.P+self.h-1, self.n);
+        test_set = range(self.P+self.h-1, self.n); #179 (168 + 12 - 1)
+        #print("Index-start")
+        #print(self.P+self.h-1)
         self.test = self._batchify(test_set);
         
-
+    # Splits the data set in windows the net will train on defined in self.P, minus the horizon because it will need horizon ahead to confirm if it predicted correctly
     def _batchify(self, idx_set):
         n = len(idx_set);
-        X = torch.zeros((n,self.P,self.m));
-        Y = torch.zeros((n,self.m));
+        print("n: ")
+        print(n)
+        X = torch.zeros((n,self.P,self.m)); #Initiliazes tensor (1000, 178, 8) 
+        Y = torch.zeros((n,self.m));        #Initiliazes tensor (1000, 8) 
         
         for i in range(n):
-            print(i) # idx_set is just a array with the intervals, in this case its the same as i, since n is 0-last index.
-            end = idx_set[i] - self.h + 1;
-            start = end - self.P;
-            print(self.dat[start:end, :].shape)
-            print(X.shape)
-            X[i,:,:] = torch.from_numpy(self.dat[start:end, :]);
-            Y[i,:] = torch.from_numpy(self.dat[idx_set[i], :]);
+            #print(i)
+            #print(i) # idx_set is just a array with the intervals, in this case its the same as i, since n is 0-last index.
+            end = idx_set[i] - self.h + 1;  #  179-988  (168 + 12 - 1 (-1 because index 0 is counted)) # What we want 
+            start = end - self.P;           # start: 0 - 820 (+ 179 = 999) # What we want 0 - 999
+            print(start)
+            #print("Start end")
+            #print(start)
+            #print(end)
+            #print(self.dat[start:end, :].shape)
+            #print(X.shape)
+            X[i,:,:] = torch.from_numpy(self.dat[start:end, :]);    # The first dimension of the X array is  from start to end, excluding the [end] element. X[]
+            Y[i,:] = torch.from_numpy(self.dat[idx_set[i], :]);     # The first dimension of the Y array equal to same index in the index array.
         return [X, Y];
 
 
