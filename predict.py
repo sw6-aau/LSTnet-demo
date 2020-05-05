@@ -152,4 +152,4 @@ inputpd = pd.DataFrame(clean_input)
 inputpd.to_csv("input.csv", index=False)
 
 df = pd.DataFrame(prediction_tensor)
-df.to_csv("output", index=False)
+df.to_csv("output.csv", index=False)
