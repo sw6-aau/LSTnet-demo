@@ -6,10 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LSTNet
-from models import AENet
-from models import AENet
-from models import RazwanNetNoPool
+from models import AECLSTNet
 import numpy as np;
 import importlib
 
@@ -137,7 +134,7 @@ if torch.cuda.is_available():
 Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize)
 #print(Data.rse)
 
-model = eval("RazwanNetNoPool").Model(args, Data)
+model = eval("AECLSTNet").Model(args, Data)
 model.float()
 
 if args.cuda:
