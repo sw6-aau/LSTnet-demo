@@ -398,7 +398,7 @@ class Trainer:
                 'type': 'relu',
             },
         ])
-        return [self.case_epoch, self.case_lr, self.case_cnn, self.case_rnn, self.case_skip, self.case_activation] # Adjust this to change the order in which parameters are tuned
+        return [self.case_epoch, self.case_cnn, self.case_rnn, self.case_skip, self.case_activation] # Adjust this to change the order in which parameters are tuned
     
     def AENet_spaces(self):
         print('Creating AENet_spaces')
