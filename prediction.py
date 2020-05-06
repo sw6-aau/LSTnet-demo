@@ -81,10 +81,8 @@ model = eval(args.model).Model(args, Data)
 optim = Optim.Optim(
     model.parameters(), args.optim, args.lr, args.clip,
 )
-with open(args.save, 'rb+') as f:
-    checkpoint = torch.load(f)
-model.load_state_dict(checkpoint['model_state_dict'])
-optim.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+with open(args.save, 'wb+') as f:
+    torch.save(model, f)
 model.eval()
 
 #Parameter setting

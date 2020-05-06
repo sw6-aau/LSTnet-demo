@@ -8,7 +8,7 @@ import torchvision
 import torchvision.transforms as transforms
 from models import AENet
 from models import LSTNet
-from models import RazwanNetNoPool
+from models import AECLSTNet
 import numpy as np
 import importlib
 import numpy
@@ -140,10 +140,8 @@ optim = Optim.Optim(
 
 # Load the best saved model.
 # Have changed the train- and validation to 0, so it testes on all the data
-with open(args.save, 'rb+') as f:
-    checkpoint = torch.load(f, map_location='cpu')
-model.load_state_dict(checkpoint['model_state_dict'])
-optim.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+with open(args.save, 'wb+') as f:
+    torch.save(model, f)
 test_acc, test_rae, test_corr, prediction_tensor  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size)
 print("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
