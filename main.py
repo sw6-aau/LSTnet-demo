@@ -65,9 +65,26 @@ class Trainer:
         )
         return best, set_trials
 
+    # Adds a gausian noise matrix to the matrix it takes as input
+    def add_noise(self, data):
+        noise_factor = 0.5
+        data = data.data.numpy()     
+        data = data + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=data.shape)  
+        data = np.clip(data, 0., 1.)
+        data_torch = torch.from_numpy(data)
+        return data_torch
+    
+    def add_noise_all_inputs(self, train, valid, test):
+        train = self.add_noise(train)
+        valid = self.add_noise(valid)
+        test = self.add_noise(test)
+        return train, valid, test
+
+
     # Tunes hyperparameters and trains the model
     # Adjust this function anytime a new hyperparameter is added
     def tuned_train(self, tuning):
+        print("AELST highway autoencoded")
         self.active_parameter(tuning)
         model = self.model_maker()
 
@@ -84,10 +101,13 @@ class Trainer:
         best_val = 10000000;
         # Performs training for a given hypertuning iteration
         for epoch in range(1, self.hyper_epoch + 1):
+            
+            train, valid, test = self.Data.train[0], self.Data.valid[0],  self.Data.test[0]
+            #train, valid, test = self.add_noise_all_inputs(self.Data.train[0], self.Data.valid[0],  self.Data.test[0])     # Add noise
+
             epoch_start_time = time.time()
-            train_loss = self.train(self.Data, self.Data.train[0], self.Data.train[1], model, self.criterion, optim, self.args.batch_size)
-            print(train_loss)
-            val_loss, val_rae, val_corr = self.evaluate(self.Data, self.Data.valid[0], self.Data.valid[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
+            train_loss = self.train(self.Data, train, self.Data.train[1], model, self.criterion, optim, self.args.batch_size)
+            val_loss, val_rae, val_corr = self.evaluate(self.Data, valid, self.Data.valid[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
             print('| end of epoch {:3d} | time: {:5.2f}s | train_loss {:5.4f} | valid rse {:5.4f} | valid rae {:5.4f} | valid corr  {:5.4f}'.format(epoch, (time.time() - epoch_start_time), train_loss, val_loss, val_rae, val_corr))
             
             # Save the model if the validation loss is the best we've seen so far.
@@ -96,13 +116,13 @@ class Trainer:
                     torch.save(model, f)
                 best_val = train_loss
             if epoch % 5 == 0:
-                test_acc, test_rae, test_corr  = self.evaluate(self.Data, self.Data.test[0], self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
+                test_acc, test_rae, test_corr  = self.evaluate(self.Data, test, self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
                 print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
         
         # Tests best saved model on the test data
         with open(self.args.save, 'rb+') as f:
             model = torch.load(f)
-        test_acc, test_rae, test_corr  = self.evaluate(self.Data, self.Data.test[0], self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
+        test_acc, test_rae, test_corr  = self.evaluate(self.Data, test, self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
         print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 
         ''' This shit is meant for saving the absolute best model, but doesn't quite work for reasons I cannot fathom
@@ -126,7 +146,7 @@ class Trainer:
         n_samples = 0;
         for X, Y in data.get_batches(X, Y, batch_size, True):
             model.zero_grad();
-            output = model(X);
+            output = model(X.float());
             scale = data.scale.expand(output.size(0), data.m)
             loss = criterion(output * scale, Y * scale);
             loss.backward();
@@ -145,7 +165,7 @@ class Trainer:
         
         # Iterates through all the batches as inputs.
         for X, Y in data.get_batches(X, Y, batch_size, False):
-            output = model(X);
+            output = model(X.float());
             if predict is None:
                 predict = output;
                 test = Y;

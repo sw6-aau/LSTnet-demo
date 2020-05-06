@@ -50,15 +50,17 @@ class Model(nn.Module):
         if (activation == 'relu'):
             self.output = F.relu;
 
+        
     def forward(self, x):
         batch_size = x.size(0);
         c = x.view(-1, 1, self.P, self.m);
         # CNN Autoencoder
-        c = F.relu(self.encode(c))
-        c = self.pool(c)
-        c = F.relu(self.decode(c))  
+        ae = F.relu(self.encode(c))
+        ae = self.pool(ae)
+        ae = F.relu(self.decode(ae))  
+        ae_hw = torch.squeeze(ae, 1);
         #CNN
-        c = F.relu(self.change_hidden(c))
+        c = F.relu(self.change_hidden(ae))
         c = self.dropout(c);
         c = torch.squeeze(c, 1)
         c = c.permute(0, 2, 1)     # Permute magic, to old format
@@ -86,7 +88,7 @@ class Model(nn.Module):
         
         #highway
         if (self.hw > 0):
-            z = x[:, -self.hw:, :]; # (128, 24, 8) #self.hw = 24 (normally 168, but looks at last 24 input values)
+            z = ae_hw[:, -self.hw:, :]; # (128, 24, 8) #self.hw = 24 (normally 168, but looks at last 24 input values)
             z = z.permute(0,2,1).contiguous().view(-1, self.hw); # (1024, 24)   #1024 samples (128 samples med 8 markeder flattened = 1024)
             z = self.highway(z);        # In the documentation of linear's input shapes (not definition), 
                                         # the inputs can be whatever dimensions, as long as the last dimension is input size, this last dim is 24, and is changed to 8
