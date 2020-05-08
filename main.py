@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LST, AELST, AENet, TAENet
+from models import LST, AELST, AENet, TAENet, AECLSTNet
 import numpy as np;
 import importlib
 
@@ -84,7 +84,6 @@ class Trainer:
     # Tunes hyperparameters and trains the model
     # Adjust this function anytime a new hyperparameter is added
     def tuned_train(self, tuning):
-        print("AELST highway autoencoded")
         self.active_parameter(tuning)
         model = self.model_maker()
 
@@ -147,13 +146,13 @@ class Trainer:
         for X, Y in data.get_batches(X, Y, batch_size, True):
             model.zero_grad();
             output = model(X.float());
-            scale = data.scale.expand(output.size(0), data.m)
-            loss = criterion(output * scale, Y * scale);
+            loss, sample = self.calc_loss(data, output, criterion, X, Y);
             loss.backward();
             grad_norm = optim.step();
             total_loss += loss.data;
-            n_samples += (output.size(0) * data.m);
+            n_samples += (sample * data.m);
         return total_loss / n_samples
+
 
     def evaluate(self, data, X, Y, model, evaluateL2, evaluateL1, batch_size):
         model.eval();
@@ -165,7 +164,7 @@ class Trainer:
         
         # Iterates through all the batches as inputs.
         for X, Y in data.get_batches(X, Y, batch_size, False):
-            output = model(X.float());
+            output = self.output(model(X.float()));
             if predict is None:
                 predict = output;
                 test = Y;
@@ -193,6 +192,31 @@ class Trainer:
         correlation = ((predict - mean_p) * (Ytest - mean_g)).mean(axis = 0)/(sigma_p * sigma_g);
         correlation = (correlation[index]).mean();
         return rse, rae, correlation;
+
+
+
+    ###########################
+    # MODEL SPECIFIC HANDLING #
+    ###########################
+
+    # Edit this function if your model requires different forms of loss calculations
+    def calc_loss(self, data, output, criterion, X, Y):
+        if self.args.model == 'AECLSTNet':
+            scale = data.scale.expand(output[0].size(0), data.m)  # Expand the original scale tensor to have row size matching the batch size.
+            scale_reconstructed = data.scale.expand(output[0].size(0), 168, data.m)
+            AE_loss = criterion(output[1] * scale_reconstructed, X * scale_reconstructed)
+            RNN_loss = criterion(output[0] * scale, Y * scale)
+            return AE_loss + RNN_loss, output[0].size(0) # defines the loss / objective function, loss function arguments (input, target)
+        else:
+            scale = data.scale.expand(output.size(0), data.m)
+            return criterion(output * scale, Y * scale), output.size(0)
+
+    # Edit this function if your model in general returns more than 1 parameter
+    # Only returns one parameter. If you need to use more than one of the parameters in evaluate, consider making a separate evaluate function
+    def output(self, output):
+        if self.args.model == 'AECLSTNet':
+            return output[0]
+        else: return output
 
 
 
