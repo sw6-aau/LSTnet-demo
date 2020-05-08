@@ -81,7 +81,7 @@ model = eval(args.model).Model(args, Data)
 optim = Optim.Optim(
     model.parameters(), args.optim, args.lr, args.clip,
 )
-with open(args.save, 'wb+') as f:
+with open(args.save, 'rb+') as f:
     torch.load(model, f)
 model.eval()
 
