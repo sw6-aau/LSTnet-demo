@@ -18,7 +18,7 @@ class Model(nn.Module):
                                                 # This would make sense of the RNN-skip arguments, they want to feed the input to the RNN with the knoweledge
                                                 # that the inputs are 24 hours in a day, so they divide the window length with 24 hours.
 
-        self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
+        #self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); # Kernel size = 6 * 8
         
         self.height_after_conv = (self.P - (self.Ck - 1))           # Conv layer changes shape by, Input size - (height - 1)
         self.pooling_factor = 4
@@ -27,19 +27,42 @@ class Model(nn.Module):
                                                                     # in order to get the original size of self.P, we find the difference between height after the
                                                                     # pooling layer and adds 1 to negate the -1 that is subtracted when using the method.
         
-        self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
+        #self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
         self.pool = nn.MaxPool2d(1, self.pooling_factor)
 
+
+        self.encoder = nn.Sequential(
+            #nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)),
+            nn.Conv1d(8, 128, 4),
+            nn.Conv1d(128, 256, 4),
+            nn.Conv1d(256, 256, 4),
+            nn.Conv1d(256, 512, 4),
+            nn.ReLU(True)
+        )
+
+        self.decoder = nn.Sequential(
+            #nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m)),
+            nn.ConvTranspose1d(512, 256, 4),
+            nn.ConvTranspose1d(256, 256, 4),
+            nn.ConvTranspose1d(256, 128, 4),
+            nn.ConvTranspose1d(128, 8, 4),
+            nn.ReLU(True)
+        )
+        
 
     def forward(self, x):
         # Y (128, 8)    (128, 168, 8) (128, 50, 163, 1)
         batch_size = x.size(0);
-        ae = x.view(-1, 1, self.P, self.m)
-        
+        ae = x.view(-1, 8, self.P * self.m)
+        #ae = x.view(-1, 1, self.P, self.m)
+        #print(batch_size)
+        #print(ae.shape)
         # Old autoencoder + dropped self.dropout
-        ae = F.relu(self.encode(ae))      # (128, 50, 163, 1)
-        ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
-        ae = F.relu(self.decode(ae))
-        ae_hw = torch.squeeze(ae, 1);
-        temp = ae_hw.contiguous()
+        print(ae.shape)
+        ae = self.encoder(ae)    # (128, 50, 163, 1)
+        #ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
+        ae = self.decoder(ae)
+        
+        #ae_hw = torch.squeeze(ae, 1);
+        temp = ae.contiguous()
         return temp[:,-1,:];

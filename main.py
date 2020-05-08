@@ -207,6 +207,11 @@ class Trainer:
             AE_loss = criterion(output[1] * scale_reconstructed, X * scale_reconstructed)
             RNN_loss = criterion(output[0] * scale, Y * scale)
             return AE_loss + RNN_loss, output[0].size(0) # defines the loss / objective function, loss function arguments (input, target)
+        if self.args.model == 'AENet':
+            print(output.size(0))
+            scale = data.scale.expand(output.size(0), data.m)
+            
+            return criterion(output * scale, Y * scale), output.size(0)
         else:
             scale = data.scale.expand(output.size(0), data.m)
             return criterion(output * scale, Y * scale), output.size(0)
