@@ -136,7 +136,7 @@ optim = Optim.Optim(
 # Load the best saved model.
 # Have changed the train- and validation to 0, so it testes on all the data
 
-with open(args.save, 'wb+') as f:
+with open(args.save, 'rb+') as f:
     torch.load(model, f)
 test_acc, test_rae, test_corr, prediction_tensor  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size)
 print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
