@@ -35,15 +35,15 @@ class Model(nn.Module):
             #nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)),
             nn.Conv1d(1, 128, 4),
             nn.Conv1d(128, 256, 4),
-            nn.Conv1d(256, 256, 4),
-            nn.Conv1d(256, 512, 4),
+            #nn.Conv1d(256, 256, 4),
+            #nn.Conv1d(256, 512, 4),
             nn.ReLU(True)
         )
 
         self.decoder = nn.Sequential(
             #nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m)),
-            nn.ConvTranspose1d(512, 256, 4),
-            nn.ConvTranspose1d(256, 256, 4),
+            #nn.ConvTranspose1d(512, 256, 4),
+            #nn.ConvTranspose1d(256, 256, 4),
             nn.ConvTranspose1d(256, 128, 4),
             nn.ConvTranspose1d(128, 1, 4),
             nn.ReLU(True)
@@ -51,26 +51,12 @@ class Model(nn.Module):
         
 
     def forward(self, x):
-        # Y (128, 8)    (128, 168, 8) (128, 50, 163, 1)
-        batch_size = x.size(0);
-	print("X:")
-	print(x.shape)
+        batch_size = x.size(0)
         ae = x.view(-1, 1, self.P * self.m)
-        #print(batch_size)
-        #print(ae.shape)
-        # Old autoencoder + dropped self.dropout
-        ae = self.encoder(ae)    # (128, 50, 163, 1)
-        print('Encoded:')
-	print(ae.shape)
-	#ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
+        ae = self.encoder(ae)
         ae = self.decoder(ae)
-	print('Decoded:')
-	print(ae.shape)
-	ae = ae.view(-1, 1, self.m)
-        
-	
+        ae = ae.view(-1, 1, self.P, self.m)
+        print("SHAPE")
+        print(ae.shape)
         ae = torch.squeeze(ae, 1);
-        temp = ae.contiguous()
-	print('Contiguous:')
-	print(temp.shape)
-        return temp[:,:];
+        return ae;

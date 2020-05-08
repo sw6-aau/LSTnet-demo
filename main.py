@@ -167,15 +167,15 @@ class Trainer:
             output = self.output(model(X.float()));
             if predict is None:
                 predict = output;
-                test = Y;
+                test = X;
             else:
                 predict = torch.cat((predict,output));
-                test = torch.cat((test, Y));
+                test = torch.cat((test, X));
             
             # Loss calculation
-            scale = data.scale.expand(output.size(0), data.m)
-            total_loss += evaluateL2(output * scale, Y * scale).data
-            total_loss_l1 += evaluateL1(output * scale, Y * scale).data
+            scale = data.scale.expand(output.size(0), 168, data.m)
+            total_loss += evaluateL2(output * scale, X * scale).data
+            total_loss_l1 += evaluateL1(output * scale, X * scale).data
             n_samples += (output.size(0) * data.m);
         
         rse = math.sqrt(total_loss / n_samples)/data.rse
@@ -207,12 +207,9 @@ class Trainer:
             AE_loss = criterion(output[1] * scale_reconstructed, X * scale_reconstructed)
             RNN_loss = criterion(output[0] * scale, Y * scale)
             return AE_loss + RNN_loss, output[0].size(0) # defines the loss / objective function, loss function arguments (input, target)
-        if self.args.model == 'QAELST':
-            print(output.size(0))
-            scale = data.scale.expand(output.size(0), data.m)
-            print(scale.size())
-	    print(Y.size())
-            return criterion(output * scale, Y * scale), output.size(0)
+        if self.args.model == 'AENet':
+            scale = data.scale.expand(output.size(0), 168, data.m)
+            return criterion(output * scale, X * scale), output.size(0)
         else:
             scale = data.scale.expand(output.size(0), data.m)
 	    #print(Y.size())
