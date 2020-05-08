@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LST, AELST, AENet, TAENet, AECLSTNet
+from models import LST, AELST, AENet, TAENet, AECLSTNet, QAELST
 import numpy as np;
 import importlib
 
@@ -207,13 +207,16 @@ class Trainer:
             AE_loss = criterion(output[1] * scale_reconstructed, X * scale_reconstructed)
             RNN_loss = criterion(output[0] * scale, Y * scale)
             return AE_loss + RNN_loss, output[0].size(0) # defines the loss / objective function, loss function arguments (input, target)
-        if self.args.model == 'AENet':
+        if self.args.model == 'QAELST':
             print(output.size(0))
             scale = data.scale.expand(output.size(0), data.m)
-            
+            print(scale.size())
+	    print(Y.size())
             return criterion(output * scale, Y * scale), output.size(0)
         else:
             scale = data.scale.expand(output.size(0), data.m)
+	    #print(Y.size())
+	    #print(scale.size())
             return criterion(output * scale, Y * scale), output.size(0)
 
     # Edit this function if your model in general returns more than 1 parameter
