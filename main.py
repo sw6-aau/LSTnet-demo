@@ -28,24 +28,27 @@ class Trainer:
         print(self.Data.rse);
 
         self.set_loss_functions()
-
-        # Hyperopt configuration
         self.set_initial_values()
-        search_space = self.create_spaces()
-        self.trials_setup()
 
-        # Tune each parameter one by one
-        self.absolute_best = 10000000
-        self.active = ''
-        for x in range(0,len(search_space)):
-            current_space = search_space[x]
-            self.active = current_space
+        if self.args.hypertune:
+            # Hyperopt configuration
+            search_space = self.create_spaces()
+            self.trials_setup()
 
-            best, trials = self.tune(current_space)
-            print(best)
+            # Tune each parameter one by one
+            self.absolute_best = 10000000
+            self.active = ''
+            for x in range(0,len(search_space)):
+                current_space = search_space[x]
+                self.active = current_space
 
-            self.manage_results(best, trials)
-        self.print_results()
+                best, trials = self.tune(current_space)
+                print(best)
+
+                self.manage_results(best, trials)
+            self.print_results()
+        else:
+            self.tuned_train()
 
         
     
@@ -83,8 +86,9 @@ class Trainer:
 
     # Tunes hyperparameters and trains the model
     # Adjust this function anytime a new hyperparameter is added
-    def tuned_train(self, tuning):
-        self.active_parameter(tuning)
+    def tuned_train(self, tuning=''):
+        if self.args.hypertune:
+            self.active_parameter(tuning)
         model = self.model_maker()
 
         nParams = sum([p.nelement() for p in model.parameters()])
@@ -167,15 +171,15 @@ class Trainer:
             output = self.output(model(X.float()));
             if predict is None:
                 predict = output;
-                test = X;
+                test = Y;
             else:
                 predict = torch.cat((predict,output));
-                test = torch.cat((test, X));
+                test = torch.cat((test, Y));
             
             # Loss calculation
-            scale = data.scale.expand(output.size(0), 168, data.m)
-            total_loss += evaluateL2(output * scale, X * scale).data
-            total_loss_l1 += evaluateL1(output * scale, X * scale).data
+            scale = data.scale.expand(output.size(0), data.m)
+            total_loss += evaluateL2(output * scale, Y * scale).data
+            total_loss_l1 += evaluateL1(output * scale, Y * scale).data
             n_samples += (output.size(0) * data.m);
         
         rse = math.sqrt(total_loss / n_samples)/data.rse
@@ -298,6 +302,7 @@ class Trainer:
         self.parser.add_argument('--normalize', type=int, default=2)
         self.parser.add_argument('--output_fun', type=str, default='sigmoid')
         self.parser.add_argument('--evals', type=int, default=5)
+        self.parser.add_argument('--hypertune', type=bool, default=False)
 
 
 

@@ -45,15 +45,11 @@ class Model(nn.Module):
         c = F.relu(self.conv1(c));
         c = self.dropout(c);
         c = torch.squeeze(c, 3);
-	print('CNN:')
-	print(c.shape)
         
         # RNN 
         r = c.permute(2, 0, 1).contiguous();
         _, r = self.GRU1(r);
         r = self.dropout(torch.squeeze(r,0));
-	print('RNN:')
-	print(r.shape)
         
         #skip-rnn
         
@@ -79,8 +75,6 @@ class Model(nn.Module):
             
         if (self.output):
             res = self.output(res);
-        print('Final:')
-	print(res.shape)
 	return res;
      
         
