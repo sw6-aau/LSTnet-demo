@@ -41,31 +41,27 @@ class Model(nn.Module):
         batch_size = x.size(0);
         
         #CNN
-        c = x.view(-1, 1, self.P, self.m);
-        c = F.relu(self.conv1(c));
-        c = self.dropout(c);
-        c = torch.squeeze(c, 3);
-	print('CNN:')
-	print(c.shape)
+        c = x.view(-1, 1, self.P, self.m)
+        c = F.relu(self.conv1(c))
+        c = self.dropout(c)
+        c = torch.squeeze(c, 3)
         
         # RNN 
-        r = c.permute(2, 0, 1).contiguous();
+        r = c.permute(2, 0, 1).contiguous()
         _, r = self.GRU1(r);
-        r = self.dropout(torch.squeeze(r,0));
-	print('RNN:')
-	print(r.shape)
-        
+        r = self.dropout(torch.squeeze(r,0))
+
         #skip-rnn
         
         if (self.skip > 0):
-            s = c[:,:, int(-self.pt * self.skip):].contiguous();
-            s = s.view(batch_size, self.hidC, self.pt, self.skip);
-            s = s.permute(2,0,3,1).contiguous();
-            s = s.view(self.pt, batch_size * self.skip, self.hidC);
-            _, s = self.GRUskip(s);
-            s = s.view(batch_size, self.skip * self.hidS);
-            s = self.dropout(s);
-            r = torch.cat((r,s),1);
+            s = c[:,:, int(-self.pt * self.skip):].contiguous()
+            s = s.view(batch_size, self.hidC, self.pt, self.skip)
+            s = s.permute(2,0,3,1).contiguous()
+            s = s.view(self.pt, batch_size * self.skip, self.hidC)
+            _, s = self.GRUskip(s)
+            s = s.view(batch_size, self.skip * self.hidS)
+            s = self.dropout(s)
+            r = torch.cat((r,s),1)
         
         res = self.linear1(r);
         
@@ -79,9 +75,7 @@ class Model(nn.Module):
             
         if (self.output):
             res = self.output(res);
-        print('Final:')
-	print(res.shape)
-	return res;
+        return res;
      
         
         

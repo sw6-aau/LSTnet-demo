@@ -69,7 +69,7 @@ class Model(nn.Module):
         c = self.dropout(c);
         c = torch.squeeze(c, 3);
 
-        # RNN 
+        # RNN
         r = c.permute(2, 0, 1).contiguous();        # The order was changed from (128, 50, 163) to (163, 128, 50)
         _, r = self.GRU1(r);                        # shape parameters from doc: seq_len, batch, input_size, 
                                                     # input size is layer input size, batch is batch. "seq_len - the number of time steps in each input stream." i.e. each input

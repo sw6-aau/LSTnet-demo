@@ -30,12 +30,20 @@ class Model(nn.Module):
         #self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
         self.pool = nn.MaxPool2d(1, self.pooling_factor)
 
+        stride = 1
+        padding = 1
+        output_padding = 0
+        dropout = 0
+        reluf = False
+        kernel_size = 4  # 2 and 8 gives 0 results funny enough TRY HYPERTUNING KERNEL SIZE DROUPUT STRIDE, they are very sensitive to change
 
         self.encoder = nn.Sequential(
             #nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)),
-            nn.Conv1d(1, 128, 4),
-            nn.Conv1d(128, 256, 4),
-            #nn.Conv1d(256, 256, 4),
+            nn.Conv1d(1, 128, kernel_size, stride=stride, padding=padding),
+            #nn.pool(1,4)
+            nn.Conv1d(128, 64, kernel_size, stride=stride, padding=padding),
+            #nn.pool(1,4)
+            nn.Conv1d(64, 32, kernel_size, stride=stride, padding=padding),
             #nn.Conv1d(256, 512, 4),
             nn.ReLU(True)
         )
@@ -43,20 +51,21 @@ class Model(nn.Module):
         self.decoder = nn.Sequential(
             #nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m)),
             #nn.ConvTranspose1d(512, 256, 4),
-            #nn.ConvTranspose1d(256, 256, 4),
-            nn.ConvTranspose1d(256, 128, 4),
-            nn.ConvTranspose1d(128, 1, 4),
+            nn.ConvTranspose1d(32, 64, kernel_size, stride=stride, padding=padding, output_padding=output_padding),
+            nn.ConvTranspose1d(64, 128, kernel_size, stride=stride, padding=padding, output_padding=output_padding),
+            nn.ConvTranspose1d(128, 1, kernel_size, stride=stride, padding=padding, output_padding=output_padding),
+            nn.Dropout(dropout),
             nn.ReLU(True)
         )
         
-
-    def forward(self, x):
+    # AE 128, 168, 8
+    def forward(self, x): # 128, 168, 8
         batch_size = x.size(0)
         ae = x.view(-1, 1, self.P * self.m)
         ae = self.encoder(ae)
         ae = self.decoder(ae)
         ae = ae.view(-1, 1, self.P, self.m)
-        print("SHAPE")
-        print(ae.shape)
         ae = torch.squeeze(ae, 1);
-        return ae;
+        new_torch = torch.zeros(batch_size, self.m)
+        new_torch = ae[:,-1,:]
+        return new_torch;

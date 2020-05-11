@@ -16,6 +16,12 @@ from utils import *;
 import Optim
 import numpy as np
 
+import os
+
+#os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+
+#os.environ["CUDA_VISIBLE_DEVICES"]="1"
+
 class Trainer:
     def __init__(self):
         # Initial setup with arguments
@@ -167,15 +173,15 @@ class Trainer:
             output = self.output(model(X.float()));
             if predict is None:
                 predict = output;
-                test = X;
+                test = Y;
             else:
                 predict = torch.cat((predict,output));
-                test = torch.cat((test, X));
+                test = torch.cat((test, Y));
             
             # Loss calculation
-            scale = data.scale.expand(output.size(0), 168, data.m)
-            total_loss += evaluateL2(output * scale, X * scale).data
-            total_loss_l1 += evaluateL1(output * scale, X * scale).data
+            scale = data.scale.expand(output.size(0), data.m)
+            total_loss += evaluateL2(output * scale, Y * scale).data
+            total_loss_l1 += evaluateL1(output * scale, Y * scale).data
             n_samples += (output.size(0) * data.m);
         
         rse = math.sqrt(total_loss / n_samples)/data.rse
@@ -208,8 +214,8 @@ class Trainer:
             RNN_loss = criterion(output[0] * scale, Y * scale)
             return AE_loss + RNN_loss, output[0].size(0) # defines the loss / objective function, loss function arguments (input, target)
         if self.args.model == 'AENet':
-            scale = data.scale.expand(output.size(0), 168, data.m)
-            return criterion(output * scale, X * scale), output.size(0)
+            scale = data.scale.expand(output.size(0), data.m)
+            return criterion(output * scale, Y * scale), output.size(0)
         else:
             scale = data.scale.expand(output.size(0), data.m)
 	    #print(Y.size())
@@ -234,6 +240,7 @@ class Trainer:
         self.args.cuda = self.args.gpu is not None
         if self.args.cuda:
             torch.cuda.set_device(self.args.gpu)
+            
 
     # Set the random seed manually for reproducibility.
     def set_seed(self):
