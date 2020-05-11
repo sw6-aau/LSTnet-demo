@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 
 class Model(nn.Module):
     def __init__(self, args, data):
@@ -19,14 +20,15 @@ class Model(nn.Module):
         self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
         
         self.height_after_conv = (self.P - (self.Ck - 1))
-        self.height_after_pooling = self.height_after_conv/2
+        self.pooling_factor = 2
+        self.height_after_pooling = int(math.ceil(float(self.height_after_conv)/self.pooling_factor)) 
         self.deconv_height = self.P - self.height_after_pooling + 1 
         
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
 
         self.change_hidden = nn.Linear(in_features=self.m, out_features=self.hidC)
         
-        self.pool = nn.MaxPool2d(1, 4)
+        self.pool = nn.MaxPool2d(1, self.pooling_factor)
         
         self.GRU1 = nn.GRU(self.hidC, self.hidR);
         self.dropout = nn.Dropout(p = args.dropout);
@@ -41,27 +43,25 @@ class Model(nn.Module):
         # Deprecated shit that somehow only works because it's deprecated
         # GG PyTorch
         self.output = None;
-        if (activation == 'sigmoid'):
+        if (args.output_fun == 'sigmoid'):
             self.output = F.sigmoid;
-        if (activation == 'tanh'):
+        if (args.output_fun == 'tanh'):
             self.output = F.tanh;
-        if (activation == 'relu'):
+        if (args.output_fun == 'relu'):
             self.output = F.relu;
 
     def forward(self, x):
         batch_size = x.size(0);
-        print(self.P - (self.P - (self.Ck - 1))/2 + 1)
         c = x.view(-1, 1, self.P, self.m);
         # CNN Autoencoder
-        c = F.relu(self.encode(c))
-        c = self.pool(c)
-        c = F.relu(self.decode(c))  
+        ae = F.relu(self.encode(c))
+        ae = self.pool(ae)
+        ae = F.relu(self.decode(ae))  
+        ae_hw = torch.squeeze(ae, 1)
         #CNN
-        c = F.relu(self.change_hidden(c))
+        c = F.relu(self.change_hidden(ae))
         c = self.dropout(c);
-        print(c.shape)
         c = torch.squeeze(c, 1)
-        print(c.shape)
         c = c.permute(0, 2, 1)     # Permute magic, to old format
         
         # RNN 
@@ -87,7 +87,7 @@ class Model(nn.Module):
         
         #highway
         if (self.hw > 0):
-            z = x[:, -self.hw:, :]; # (128, 24, 8) #self.hw = 24 (normally 168, but looks at last 24 input values)
+            z = ae_hw[:, -self.hw:, :]; # (128, 24, 8) #self.hw = 24 (normally 168, but looks at last 24 input values)
             z = z.permute(0,2,1).contiguous().view(-1, self.hw); # (1024, 24)   #1024 samples (128 samples med 8 markeder flattened = 1024)
             z = self.highway(z);        # In the documentation of linear's input shapes (not definition), 
                                         # the inputs can be whatever dimensions, as long as the last dimension is input size, this last dim is 24, and is changed to 8
