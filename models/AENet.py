@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import math
 
 class Model(nn.Module):
-    def __init__(self, args, data, cnn):
+    def __init__(self, args, data, cnn, kernel):
         super(Model, self).__init__()
         self.use_cuda = args.cuda
         self.P = args.window;
@@ -29,13 +29,12 @@ class Model(nn.Module):
         
         #self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
         self.pool = nn.MaxPool2d(1, self.pooling_factor)
-
         stride = 1
         padding = 1
         output_padding = 0
         dropout = 0
         reluf = False
-        kernel_size = 4  # 2 and 8 gives 0 results funny enough TRY HYPERTUNING KERNEL SIZE DROUPUT STRIDE, they are very sensitive to change
+        kernel_size = kernel  # 2 and 8 gives 0 results funny enough TRY HYPERTUNING KERNEL SIZE DROUPUT STRIDE, they are very sensitive to change
 
         self.encoder = nn.Sequential(
             #nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)),

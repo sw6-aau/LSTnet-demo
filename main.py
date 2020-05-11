@@ -17,6 +17,7 @@ import Optim
 import numpy as np
 
 import os
+import csv
 
 #os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 
@@ -37,6 +38,7 @@ class Trainer:
         self.set_initial_values()
 
         if self.args.hypertune:
+            self.case_list()
             # Hyperopt configuration
             search_space = self.create_spaces()
             self.trials_setup()
@@ -308,9 +310,13 @@ class Trainer:
         self.parser.add_argument('--L1Loss', type=bool, default=True)
         self.parser.add_argument('--normalize', type=int, default=2)
         self.parser.add_argument('--output_fun', type=str, default='sigmoid')
-        self.parser.add_argument('--evals', type=int, default=5)
         self.parser.add_argument('--hypertune', type=bool, default=False)
-
+        self.parser.add_argument('--evals', type=int, default=5)
+        self.parser.add_argument('--hyperepoch', type=int, default=2)
+        self.parser.add_argument('--hypercnn', type=int, default=2)
+        self.parser.add_argument('--hyperrnn', type=int, default=2)
+        self.parser.add_argument('--hyperskip', type=int, default=2)
+        self.parser.add_argument('--hyperkernel', type=int, default=2)
 
 
     ##########################
@@ -327,6 +333,7 @@ class Trainer:
         self.skip = self.args.hidSkip
         self.activation = self.args.output_fun
         self.lr = self.args.lr
+        self.kernel = 4
 
     # Adjusts the value of the parameter that is currently being tuned
     def active_parameter(self, tuning):
@@ -342,6 +349,8 @@ class Trainer:
             self.activation = tuning['type']
         elif self.active == self.case_lr:
             self.lr = tuning
+        elif self.active == self.case_kernel:
+            self.kernel = int(tuning)
 
     # Sets up trials for end-of-optimization reviewing
     def trials_setup(self):
@@ -351,6 +360,7 @@ class Trainer:
         self.skiptrials = Trials()
         self.actitrials = Trials()
         self.lrtrials = Trials()
+        self.kerneltrials = Trials()
 
     # Sets up variables for later use in displaying results
     def manage_results(self, best, trials):
@@ -370,25 +380,36 @@ class Trainer:
             self.activation = best
             self.actitrials = trials
         elif self.active == self.case_lr:
-            self.lr = best
+            self.lr = int(best['lr'])
             self.lrtrials = trials
+        elif self.active == self.case_kernel:
+            self.kernel = int(best['kernel'])
+            self.kerneltrials = trials
             
     # Prints results of each parameter at the end of tuning
     # If you add new parameters, remember to update this
     def print_results(self):
         print('Model: ' + self.args.model)
         print('Best epoch: ' + str(self.hyper_epoch))
-        print(self.epochtrials.trials)
+        print(self.epochtrials.best_trial)
         print('Best cnn: ' + str(self.cnn))
-        print(self.cnntrials.trials)
-        print('Best rnn: ' + str(self.rnn))
-        print(self.rnntrials.trials)
-        print('Best skip: ' + str(self.skip))
-        print(self.skiptrials.trials)
-        print('Best activator: ' + str(self.activation))
-        print(self.actitrials.trials)
-        print('Best Learning Rate: ' + str(self.lr))
-        print(self.lrtrials.trials)
+        print(self.cnntrials.best_trial)
+        if self.args.model == 'AENet':
+            print('Best Kernel:' + str(self.kernel))
+            print(self.kerneltrials.best_trial)
+        if self.args.model == 'LST':
+            print('Best rnn: ' + str(self.rnn))
+            print(self.rnntrials.best_trial)
+            print('Best skip: ' + str(self.skip))
+            print(self.skiptrials.best_trial)
+            print('Best activator: ' + str(self.activation))
+            print(self.actitrials.best_trial)
+            print('Best Learning Rate: ' + str(self.lr))
+            print(self.lrtrials.best_trial)
+        '''with open('hyperresults.csv', 'w', newLine='') as f:
+            filewriter = csv.writer(f)
+            filewriter.writerow(['Parameter', 'Best', 'RSE'])
+            filewriter.writerow(['Epoch', str(self.hyper_epoch), ])'''
 
 
     
@@ -408,7 +429,7 @@ class Trainer:
     # Creates a model for use in tuned_train()
     def model_maker(self):
         if self.input_cnn():
-            return eval(self.args.model).Model(self.args, self.Data, self.cnn);
+            return eval(self.args.model).Model(self.args, self.Data, self.cnn, self.kernel);
         else:
             return eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation);
 
@@ -417,14 +438,25 @@ class Trainer:
         if self.args.model == 'AENet' or self.args.model == 'TAENet':
             return True
         else: return False
+
+    # Define all potential cases
+    # Define them here even if they are unused for if-statement purposes
+    def case_list(self):
+        self.case_epoch = ''
+        self.case_cnn = ''
+        self.case_rnn = ''
+        self.case_skip = ''
+        self.case_activation = ''
+        self.case_lr = ''
+        self.case_kernel = ''
     
     def standard_spaces(self):
         print('Creating standard_spaces')
-        self.case_epoch = hp.uniform('epoch', 10, 250)
+        self.case_epoch = hp.uniform('epoch', 1, self.args.hyperepoch)
         self.case_lr = hp.uniform('lr', 0.0001, 0.01)
-        self.case_cnn = hp.uniform('cnn', 30, 800)
-        self.case_rnn = hp.uniform('rnn', 30, 800)
-        self.case_skip = hp.uniform('skip', 2, 10)
+        self.case_cnn = hp.uniform('cnn', 1, self.args.hypercnn)
+        self.case_rnn = hp.uniform('rnn', 1, self.args.hyperrnn)
+        self.case_skip = hp.uniform('skip', 1, self.args.hyperskip)
         self.case_activation = hp.choice('activation_type', [
             {
                 'type': 'None',
@@ -439,13 +471,15 @@ class Trainer:
                 'type': 'relu',
             },
         ])
+        
         return [self.case_epoch, self.case_cnn, self.case_rnn, self.case_skip, self.case_activation] # Adjust this to change the order in which parameters are tuned
     
     def AENet_spaces(self):
         print('Creating AENet_spaces')
-        self.case_epoch = hp.uniform('epoch', 10, 250)
-        self.case_cnn = hp.uniform('cnn', 30, 800)
-        return [self.case_epoch, self.case_cnn] # Adjust this to change the order in which parameters are tuned
+        self.case_kernel = hp.uniform('kernel', 1, self.args.hyperkernel)
+        self.case_epoch = hp.uniform('epoch', 1, self.args.hyperepoch)
+        self.case_cnn = hp.uniform('cnn', 1, self.args.hypercnn)
+        return [self.case_kernel, self.case_epoch, self.case_cnn] # Adjust this to change the order in which parameters are tuned
 
     ################
     # END OF CLASS #
