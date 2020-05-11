@@ -389,27 +389,37 @@ class Trainer:
     # Prints results of each parameter at the end of tuning
     # If you add new parameters, remember to update this
     def print_results(self):
-        print('Model: ' + self.args.model)
-        print('Best epoch: ' + str(self.hyper_epoch))
-        print(self.epochtrials.best_trial)
-        print('Best cnn: ' + str(self.cnn))
-        print(self.cnntrials.best_trial)
-        if self.args.model == 'AENet':
-            print('Best Kernel:' + str(self.kernel))
-            print(self.kerneltrials.best_trial)
-        if self.args.model == 'LST':
-            print('Best rnn: ' + str(self.rnn))
-            print(self.rnntrials.best_trial)
-            print('Best skip: ' + str(self.skip))
-            print(self.skiptrials.best_trial)
-            print('Best activator: ' + str(self.activation))
-            print(self.actitrials.best_trial)
-            print('Best Learning Rate: ' + str(self.lr))
-            print(self.lrtrials.best_trial)
-        '''with open('hyperresults.csv', 'w', newLine='') as f:
+        with open('hyperresults.csv', 'w', newline='') as f:
             filewriter = csv.writer(f)
             filewriter.writerow(['Parameter', 'Best', 'RSE'])
-            filewriter.writerow(['Epoch', str(self.hyper_epoch), ])'''
+            print('Model: ' + self.args.model)
+
+            print('Best epoch: ' + str(self.hyper_epoch))
+            print(self.epochtrials.best_trial['result']['loss'])
+            filewriter.writerow(['Epoch', self.hyper_epoch, self.epochtrials.best_trial['result']['loss']])
+
+            print('Best cnn: ' + str(self.cnn))
+            print(self.cnntrials.best_trial['result']['loss'])
+            filewriter.writerow(['CNN', self.cnn, self.cnntrials.best_trial['result']['loss']])
+
+            if self.args.model == 'AENet':
+                print('Best Kernel:' + str(self.kernel))
+                print(self.kerneltrials.best_trial['result']['loss'])
+                filewriter.writerow(['Kernel', self.kernel, self.kerneltrials.best_trial['result']['loss']])
+            if self.args.model == 'LST':
+                print('Best rnn: ' + str(self.rnn))
+                print(self.rnntrials.best_trial['result']['loss'])
+                filewriter.writerow(['RNN', self.rnn, self.rnntrials.best_trial['result']['loss']])
+
+                print('Best skip: ' + str(self.skip))
+                print(self.skiptrials.best_trial['result']['loss'])
+                filewriter.writerow(['Skip', self.skip, self.skiptrials.best_trial['result']['loss']])
+
+                print('Best activator: ' + str(self.activation))
+                print(self.actitrials.best_trial['result']['loss'])
+                filewriter.writerow(['Activator', self.activation, self.actitrials.best_trial['result']['loss']])
+                #print('Best Learning Rate: ' + str(self.lr))
+                #print(self.lrtrials.best_trial)
 
 
     
