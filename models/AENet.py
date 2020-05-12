@@ -44,7 +44,7 @@ class Model(nn.Module):
             #nn.pool(1,4)
             nn.Conv1d(64, 32, kernel_size, stride=stride, padding=padding),
             #nn.Conv1d(256, 512, 4),
-            nn.ReLU(True)
+            #nn.ReLU(True)
         )
 
         self.decoder = nn.Sequential(
@@ -54,7 +54,7 @@ class Model(nn.Module):
             nn.ConvTranspose1d(64, 128, kernel_size, stride=stride, padding=padding, output_padding=output_padding),
             nn.ConvTranspose1d(128, 1, kernel_size, stride=stride, padding=padding, output_padding=output_padding),
             nn.Dropout(dropout),
-            nn.ReLU(True)
+            #nn.ReLU(True)
         )
         
     # AE 128, 168, 8
@@ -67,4 +67,5 @@ class Model(nn.Module):
         ae = torch.squeeze(ae, 1);
         new_torch = torch.zeros(batch_size, self.m)
         new_torch = ae[:,-1,:]
+        #F.relu(new_torch)
         return new_torch;
