@@ -14,7 +14,7 @@ class Model(nn.Module):
         self.hidS = args.hidSkip;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
-        self.pt = (self.P - self.Ck)/self.skip
+        self.pt = int((self.P - self.Ck)/self.skip)
         self.hw = args.highway_window
         
         self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));

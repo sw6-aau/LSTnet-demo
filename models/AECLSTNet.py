@@ -13,7 +13,7 @@ class Model(nn.Module):
         self.hidS = args.hidSkip;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
-        self.pt = (self.P - self.Ck)/self.skip  # (168 - 6) / 24 = 6.75 rounded 6 # If they have made a mistake here it would make a lot more sense. Then 168 - 6 would be
+        self.pt = int((self.P - self.Ck)/self.skip)  # (168 - 6) / 24 = 6.75 rounded 6 # If they have made a mistake here it would make a lot more sense. Then 168 - 6 would be
                                                 # sequence length after being processed by CNN layer, but the actual shape after CNN layer was 163 (i.e. - 5), but that can be unintuitive to
                                                 # determine, since it is sequence length - (Ck - 1) after being processed by CNN layer not sequence length - Ck.
                                                 # This would make sense of the RNN-skip arguments, they want to feed the input to the RNN with the knoweledge
