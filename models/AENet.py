@@ -58,7 +58,7 @@ class Model(nn.Module):
         ae = F.relu(self.encode(ae))      # (128, 50, 163, 1)
         ae = self.pool(ae)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
         ae = F.relu(self.decode(ae))
-        print(ae.shape)
+        #print(ae.shape)
         ae_hw = torch.squeeze(ae, 1);
         temp = ae_hw.contiguous()
         return temp[:,-1,:];
