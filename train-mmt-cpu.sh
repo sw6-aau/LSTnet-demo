@@ -1,1 +1,0 @@
-python2 main.py --data data/montly-mean-temp.txt --save save/montly-mean-temp.pt --hidCNN 50 --hidRNN 50 --L1Loss False --output_fun None
