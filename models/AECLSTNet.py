@@ -74,7 +74,7 @@ class Model(nn.Module):
         #ae = self.decode1(ae)
         
         # CNN
-        c = F.relu(self.encode(c))      # (128, 50, 163, 1)
+        c = self.encode(c)      # (128, 50, 163, 1)
         
         reconstructed = self.pool(c)                # (128, 50, 81, 1) (163 / 2 = 81, rounding down)
         reconstructed = F.relu(self.decode(c))
