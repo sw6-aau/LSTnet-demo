@@ -22,7 +22,7 @@ class Model(nn.Module):
         self.height_after_conv = (self.P - (self.Ck - 1))
         self.pooling_factor = 4
         self.height_after_pooling = int(math.ceil(float(self.height_after_conv)/self.pooling_factor)) 
-        self.deconv_height = self.P - self.height_after_pooling + 1 
+        self.deconv_height = self.P - self.height_after_pooling + 1
         
         self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
 
