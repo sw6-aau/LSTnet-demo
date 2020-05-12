@@ -30,7 +30,7 @@ class Model(nn.Module):
         #self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
         self.pool = nn.MaxPool2d(1, self.pooling_factor)
         stride = 1
-        padding = 1
+        padding = 0
         output_padding = 0
         dropout = 0
         reluf = False
