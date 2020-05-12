@@ -54,9 +54,9 @@ class Model(nn.Module):
         batch_size = x.size(0);
         c = x.view(-1, 1, self.P, self.m);
         # CNN Autoencoder
-        ae = F.relu(self.encode(c))
+        ae = self.encode(c)
         ae = self.pool(ae)
-        ae = F.relu(self.decode(ae))  
+        ae = self.decode(ae)
         ae_hw = torch.squeeze(ae, 1)
         #CNN
         c = F.relu(self.change_hidden(ae))
