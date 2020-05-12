@@ -20,7 +20,7 @@ class Model(nn.Module):
         self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
         
         self.height_after_conv = (self.P - (self.Ck - 1))
-        self.pooling_factor = 2
+        self.pooling_factor = 4
         self.height_after_pooling = int(math.ceil(float(self.height_after_conv)/self.pooling_factor)) 
         self.deconv_height = self.P - self.height_after_pooling + 1 
         
