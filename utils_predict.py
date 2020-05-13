@@ -32,7 +32,6 @@ class Data_utility(object):
         self.rae = torch.mean(torch.abs(tmp - torch.mean(tmp)))
     
     def _normalized(self, normalize):
-        #normalized by the maximum value of entire matrix.
         self.dat = self.rawdat
             
         
