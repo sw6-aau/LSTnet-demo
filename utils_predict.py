@@ -33,18 +33,7 @@ class Data_utility(object):
     
     def _normalized(self, normalize):
         #normalized by the maximum value of entire matrix.
-       
-        if (normalize == 0):
-            self.dat = self.rawdat
-            
-        if (normalize == 1):
-            self.dat = self.rawdat / np.max(self.rawdat);
-            
-        #normlized by the maximum value of each row(sensor).
-        if (normalize == 2):
-            for i in range(self.m):
-                self.scale[i] = np.max(np.abs(self.rawdat[:,i]));
-                self.dat[:,i] = self.rawdat[:,i] / np.max(np.abs(self.rawdat[:,i]));
+        self.dat = self.rawdat
             
         
     def _split(self, test):
