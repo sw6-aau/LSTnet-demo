@@ -46,6 +46,7 @@ class Data_utility(object):
         Y = torch.zeros((n,self.m));        #Initiliazes tensor (1000, 8) 
         
         for i in range(n):
+            print("HEY BUGG")
             end = idx_set[i] - self.h + 1;  #  179-988  (168 + 12 - 1 (-1 because index 0 is counted)) # What we want 
             start = end - self.P;           # start: 0 - 820 (+ 179 = 999) # What we want 0 - 999
             X[i,:,:] = torch.from_numpy(self.dat[start:end, :]);    # The first dimension of the X array is  from start to end, excluding the [end] element. X[]
