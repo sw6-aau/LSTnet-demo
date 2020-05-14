@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LST, AELST, AENet, AENet2, TAENet, AECLSTNet, QAELST
+from models import LST, AERNN, AELST, AENet, AENet2, TAENet, AECLSTNet, QAELST
 import numpy as np;
 import importlib
 
