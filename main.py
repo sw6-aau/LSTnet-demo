@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LST, AELST, AENet, TAENet, AECLSTNet, QAELST
+from models import LST, AELST, AENet, AENet2, TAENet, AECLSTNet, QAELST
 import numpy as np;
 import importlib
 
@@ -39,6 +39,7 @@ class Trainer:
 
         if self.args.hypertune:
             self.case_list()
+            self.parameter_dict()
             # Hyperopt configuration
             search_space = self.create_spaces()
             self.trials_setup()
@@ -287,7 +288,7 @@ class Trainer:
                             help='The window size of the highway component')
         self.parser.add_argument('--clip', type=float, default=10.,
                             help='gradient clipping')
-        self.parser.add_argument('--epochs', type=int, default=1,
+        self.parser.add_argument('--epochs', type=int, default=10,
                             help='upper epoch limit')
         self.parser.add_argument('--batch_size', type=int, default=128, metavar='N',
                             help='batch size')
@@ -334,6 +335,16 @@ class Trainer:
         self.activation = self.args.output_fun
         self.lr = self.args.lr
         self.kernel = 4
+
+    def parameter_dict(self):
+        self.params = {
+            'epoch': False,
+            'cnn': False,
+            'rnn': False,
+            'skip': False,
+            'kernel': False,
+            'activator': False
+        }
 
     # Adjusts the value of the parameter that is currently being tuned
     def active_parameter(self, tuning):
@@ -394,32 +405,35 @@ class Trainer:
             filewriter.writerow(['Parameter', 'Best', 'RSE'])
             print('Model: ' + self.args.model)
 
-            print('Best epoch: ' + str(self.hyper_epoch))
-            print(self.epochtrials.best_trial['result']['loss'])
-            filewriter.writerow(['Epoch', self.hyper_epoch, self.epochtrials.best_trial['result']['loss']])
+            if self.params['epoch']:
+                print('Best epoch: ' + str(self.hyper_epoch))
+                print(self.epochtrials.best_trial['result']['loss'])
+                filewriter.writerow(['Epoch', self.hyper_epoch, self.epochtrials.best_trial['result']['loss']])
 
-            print('Best cnn: ' + str(self.cnn))
-            print(self.cnntrials.best_trial['result']['loss'])
-            filewriter.writerow(['CNN', self.cnn, self.cnntrials.best_trial['result']['loss']])
+            if self.params['cnn']:
+                print('Best cnn: ' + str(self.cnn))
+                print(self.cnntrials.best_trial['result']['loss'])
+                filewriter.writerow(['CNN', self.cnn, self.cnntrials.best_trial['result']['loss']])
 
-            if self.args.model == 'AENet':
-                print('Best Kernel:' + str(self.kernel))
-                print(self.kerneltrials.best_trial['result']['loss'])
-                filewriter.writerow(['Kernel', self.kernel, self.kerneltrials.best_trial['result']['loss']])
-            if self.args.model == 'LST':
+            if self.params['rnn']:
                 print('Best rnn: ' + str(self.rnn))
                 print(self.rnntrials.best_trial['result']['loss'])
                 filewriter.writerow(['RNN', self.rnn, self.rnntrials.best_trial['result']['loss']])
 
+            if self.params['skip']:
                 print('Best skip: ' + str(self.skip))
                 print(self.skiptrials.best_trial['result']['loss'])
                 filewriter.writerow(['Skip', self.skip, self.skiptrials.best_trial['result']['loss']])
 
+            if self.params['activator']:
                 print('Best activator: ' + str(self.activation))
                 print(self.actitrials.best_trial['result']['loss'])
                 filewriter.writerow(['Activator', self.activation, self.actitrials.best_trial['result']['loss']])
-                #print('Best Learning Rate: ' + str(self.lr))
-                #print(self.lrtrials.best_trial)
+
+            if self.params['kernel']:
+                print('Best Kernel:' + str(self.kernel))
+                print(self.kerneltrials.best_trial['result']['loss'])
+                filewriter.writerow(['Kernel', self.kernel, self.kerneltrials.best_trial['result']['loss']])
 
 
     
@@ -433,6 +447,8 @@ class Trainer:
         print('In create_spaces, model: ' + self.args.model)
         if self.input_cnn():
             return self.AENet_spaces()
+        elif self.if_AELST():
+            return self.AELST_spaces()
         else:
             return self.standard_spaces()
 
@@ -440,12 +456,19 @@ class Trainer:
     def model_maker(self):
         if self.input_cnn():
             return eval(self.args.model).Model(self.args, self.Data, self.cnn, self.kernel);
+        elif self.if_AELST():
+            return eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation, self.kernel)
         else:
             return eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation);
 
     # Add your model here if the only parameter it needs tuned is cnn size
     def input_cnn(self):
-        if self.args.model == 'AENet' or self.args.model == 'TAENet':
+        if self.args.model == 'AENet' or self.args.model == 'AENet2' or self.args.model == 'TAENet':
+            return True
+        else: return False
+
+    def if_AELST(self):
+        if self.args.model == 'AELST':
             return True
         else: return False
 
@@ -459,13 +482,14 @@ class Trainer:
         self.case_activation = ''
         self.case_lr = ''
         self.case_kernel = ''
+
+    
     
     def standard_spaces(self):
         print('Creating standard_spaces')
-        self.case_epoch = hp.uniform('epoch', 1, self.args.hyperepoch)
-        self.case_lr = hp.uniform('lr', 0.0001, 0.01)
-        self.case_cnn = hp.uniform('cnn', 1, self.args.hypercnn)
-        self.case_rnn = hp.uniform('rnn', 1, self.args.hyperrnn)
+        self.case_epoch = hp.uniform('epoch', 100, self.args.hyperepoch)
+        self.case_cnn = hp.uniform('cnn', 50, self.args.hypercnn)
+        self.case_rnn = hp.uniform('rnn', 50, self.args.hyperrnn)
         self.case_skip = hp.uniform('skip', 1, self.args.hyperskip)
         self.case_activation = hp.choice('activation_type', [
             {
@@ -482,14 +506,37 @@ class Trainer:
             },
         ])
         
-        return [self.case_epoch, self.case_cnn, self.case_rnn, self.case_skip, self.case_activation] # Adjust this to change the order in which parameters are tuned
+        self.params.update({
+            'epoch': True,
+            'cnn': True,
+            'rnn': True,
+            'skip': True,
+            'activator': True
+        })
+
+        return [self.case_cnn, self.case_rnn, self.case_skip, self.case_activation, self.case_epoch] # Adjust this to change the order in which parameters are tuned
     
     def AENet_spaces(self):
         print('Creating AENet_spaces')
         self.case_kernel = hp.uniform('kernel', 1, self.args.hyperkernel)
         self.case_epoch = hp.uniform('epoch', 1, self.args.hyperepoch)
         self.case_cnn = hp.uniform('cnn', 1, self.args.hypercnn)
-        return [self.case_kernel, self.case_epoch, self.case_cnn] # Adjust this to change the order in which parameters are tuned
+
+        self.params.update({
+            'epoch': True,
+            'cnn': True,
+            'kernel': True
+        })
+
+        return [self.case_cnn, self.case_kernel, self.case_epoch] # Adjust this to change the order in which parameters are tuned
+
+    def AELST_spaces(self):
+        self.case_kernel = hp.uniform('kernel', 1, self.args.hyperkernel)
+        cases = [self.case_kernel]
+
+        self.params.update({'kernel': True})
+        cases.extend(self.standard_spaces())
+        return cases
 
     ################
     # END OF CLASS #

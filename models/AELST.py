@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import math
 
 class Model(nn.Module):
-    def __init__(self, args, data, cnn, rnn, skip, activation):
+    def __init__(self, args, data, cnn, rnn, skip, activation, kernel):
         super(Model, self).__init__()
         self.use_cuda = args.cuda
         self.P = args.window;
@@ -14,22 +14,40 @@ class Model(nn.Module):
         self.hidS = skip;
         self.Ck = args.CNN_kernel;
         self.skip = args.skip;
-        self.pt = (self.P - self.Ck)/self.skip
+        self.pt = int((self.P - self.Ck)/self.skip)
         self.hw = args.highway_window
         
-        self.encode = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
-        
-        self.height_after_conv = (self.P - (self.Ck - 1))
-        self.pooling_factor = 2
-        self.height_after_pooling = int(math.ceil(float(self.height_after_conv)/self.pooling_factor)) 
-        self.deconv_height = self.P - self.height_after_pooling + 1 
-        
-        self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
+        self.conv1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m));
 
-        self.change_hidden = nn.Linear(in_features=self.m, out_features=self.hidC)
+        self.height_after_conv = (self.P - (self.Ck - 1))           # Conv layer changes shape by, Input size - (height - 1)
+        self.pooling_factor = 4
+        self.height_after_pooling = int(math.ceil(float(self.height_after_conv)/self.pooling_factor))        # Max pooling 2x2 gives a input size reduction of input_size / 2
+        self.deconv_height = self.P - self.height_after_pooling + 1 # Transpose layer adds the height argument to the input shape -1, after convolution. So  
+                                                                    # in order to get the original size of self.P, we find the difference between height after the
+                                                                    # pooling layer and adds 1 to negate the -1 that is subtracted when using the method.
         
-        self.pool = nn.MaxPool2d(1, self.pooling_factor)
-        
+        #self.pool = nn.MaxPool2d(1, self.pooling_factor)
+        stride = 1
+        padding = 0
+        output_padding = 0
+        dropout = 0
+        reluf = False
+        kernel_size = kernel  # 2 and 8 gives 0 results funny enough TRY HYPERTUNING KERNEL SIZE DROUPUT STRIDE, they are very sensitive to change
+
+        self.encoder = nn.Sequential(
+            nn.Conv1d(1, 128, kernel_size, stride=stride, padding=padding),
+            nn.Conv1d(128, 64, kernel_size, stride=stride, padding=padding),
+            nn.Conv1d(64, 32, kernel_size, stride=stride, padding=padding),
+        )
+
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose1d(32, 64, kernel_size, stride=stride, padding=padding, output_padding=output_padding),
+            nn.ConvTranspose1d(64, 128, kernel_size, stride=stride, padding=padding, output_padding=output_padding),
+            nn.ConvTranspose1d(128, 1, kernel_size, stride=stride, padding=padding, output_padding=output_padding),
+            nn.Dropout(dropout),
+        )
+
+
         self.GRU1 = nn.GRU(self.hidC, self.hidR);
         self.dropout = nn.Dropout(p = args.dropout);
         if (self.skip > 0):
@@ -53,17 +71,18 @@ class Model(nn.Module):
         
     def forward(self, x):
         batch_size = x.size(0);
-        c = x.view(-1, 1, self.P, self.m);
+        ae = x.view(-1, 1, self.P * self.m)
+
         # CNN Autoencoder
-        ae = F.relu(self.encode(c))
-        ae = self.pool(ae)
-        ae = F.relu(self.decode(ae))  
+        ae = self.encoder(ae)
+        ae = self.decoder(ae)
+        ae = ae.view(-1, 1, self.P, self.m)
         ae_hw = torch.squeeze(ae, 1);
+
         #CNN
-        c = F.relu(self.change_hidden(ae))
+        c = F.relu(self.conv1(ae))
         c = self.dropout(c);
-        c = torch.squeeze(c, 1)
-        c = c.permute(0, 2, 1)     # Permute magic, to old format
+        c = torch.squeeze(c, 3)
         
         # RNN 
         r = c.permute(2, 0, 1).contiguous();
