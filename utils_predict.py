@@ -48,11 +48,8 @@ class Data_utility(object):
         Y = torch.zeros((n,self.m));
         
         for i in range(n):
-            print(i) # idx_set is just a array with the intervals, in this case its the same as i, since n is 0-last index.
             end = idx_set[i] - self.h + 1;
             start = end - self.P;
-            print(self.dat[start:end, :].shape)
-            print(X.shape)
             X[i,:,:] = torch.from_numpy(self.dat[start:end, :]);
             Y[i,:] = torch.from_numpy(self.dat[idx_set[i], :]);
         return [X, Y];
