@@ -535,8 +535,8 @@ class Trainer:
         return cases
 
     def TAE_spaces(self):
-        self.params.update({'cnn': True})
-        return [self.case_cnn]
+        self.params.update({'cnn': True, 'epoch': True})
+        return [self.case_cnn, self.case_epoch]
 
 
     ################
