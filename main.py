@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LST, AERNN, AELST, AENet, AENet2, TAENet, AECLSTNet, QAELST
+from models import LSTNet, AERNN, AELST, AENet1D, AENet2D, TAENet2D, AECLST
 import numpy as np;
 import importlib
 
@@ -214,15 +214,12 @@ class Trainer:
 
     # Edit this function if your model requires different forms of loss calculations
     def calc_loss(self, data, output, criterion, X, Y):
-        if self.args.model == 'AECLSTNet':
+        if self.args.model == 'AECLST':
             scale = data.scale.expand(output[0].size(0), data.m)  # Expand the original scale tensor to have row size matching the batch size.
             scale_reconstructed = data.scale.expand(output[0].size(0), 168, data.m)
             AE_loss = criterion(output[1] * scale_reconstructed, X * scale_reconstructed)
             RNN_loss = criterion(output[0] * scale, Y * scale)
             return AE_loss + RNN_loss, output[0].size(0) # defines the loss / objective function, loss function arguments (input, target)
-        if self.args.model == 'AENet':
-            scale = data.scale.expand(output.size(0), data.m)
-            return criterion(output * scale, Y * scale), output.size(0)
         else:
             scale = data.scale.expand(output.size(0), data.m)
 	    #print(Y.size())
@@ -232,7 +229,7 @@ class Trainer:
     # Edit this function if your model in general returns more than 1 parameter
     # Only returns one parameter. If you need to use more than one of the parameters in evaluate, consider making a separate evaluate function
     def output(self, output):
-        if self.args.model == 'AECLSTNet':
+        if self.args.model == 'AECLST':
             return output[0]
         else: return output
 
@@ -274,7 +271,7 @@ class Trainer:
     def set_args(self):
         self.parser.add_argument('--data', type=str, required=True,
                             help='location of the data file')
-        self.parser.add_argument('--model', type=str, default='LST',
+        self.parser.add_argument('--model', type=str, default='LSTNet',
                             help='')
         self.parser.add_argument('--hidCNN', type=int, default=100,
                             help='number of CNN hidden units')
@@ -463,7 +460,7 @@ class Trainer:
 
     # Add your model here if the only parameter it needs tuned is cnn size
     def input_cnn(self):
-        if self.args.model == 'AENet' or self.args.model == 'AENet2' or self.args.model == 'TAENet':
+        if self.args.model == 'AENet1D' or self.args.model == 'AENet2D' or self.args.model == 'TAENet2D':
             return True
         else: return False
 
