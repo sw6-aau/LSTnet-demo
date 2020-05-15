@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LST, AERNN, AELST, AENet, AENet2, TAENet, AECLSTNet, QAELST
+from models import LST, AERNN, AELST, AENet, AENet2, TAENet2D, AECLSTNet, QAELST
 import numpy as np;
 import importlib
 
@@ -40,6 +40,7 @@ class Trainer:
         if self.args.hypertune:
             self.case_list()
             self.parameter_dict()
+            self.spaces()
             # Hyperopt configuration
             search_space = self.create_spaces()
             self.trials_setup()
@@ -449,6 +450,8 @@ class Trainer:
             return self.AENet_spaces()
         elif self.if_AELST():
             return self.AELST_spaces()
+        elif self.if_TAE():
+            return self.TAE_spaces()
         else:
             return self.standard_spaces()
 
@@ -458,6 +461,8 @@ class Trainer:
             return eval(self.args.model).Model(self.args, self.Data, self.cnn, self.kernel);
         elif self.if_AELST():
             return eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation, self.kernel)
+        elif self.if_TAE():
+            return eval(self.args.model).Model(self.args, self.Data, self.cnn)
         else:
             return eval(self.args.model).Model(self.args, self.Data, self.cnn, self.rnn, self.skip, self.activation);
 
@@ -472,6 +477,11 @@ class Trainer:
             return True
         else: return False
 
+    def if_TAE(self):
+        if self.args.model == 'TAENet2D':
+            return True
+        else: False
+
     # Define all potential cases
     # Define them here even if they are unused for if-statement purposes
     def case_list(self):
@@ -483,14 +493,12 @@ class Trainer:
         self.case_lr = ''
         self.case_kernel = ''
 
-    
-    
-    def standard_spaces(self):
-        print('Creating standard_spaces')
+    def spaces(self):
         self.case_epoch = hp.uniform('epoch', 100, self.args.hyperepoch)
         self.case_cnn = hp.uniform('cnn', 50, self.args.hypercnn)
         self.case_rnn = hp.uniform('rnn', 50, self.args.hyperrnn)
         self.case_skip = hp.uniform('skip', 1, self.args.hyperskip)
+        self.case_kernel = hp.uniform('kernel', 1, self.args.hyperkernel)
         self.case_activation = hp.choice('activation_type', [
             {
                 'type': 'None',
@@ -505,7 +513,9 @@ class Trainer:
                 'type': 'relu',
             },
         ])
-        
+    
+    def standard_spaces(self):
+        print('Creating standard_spaces')
         self.params.update({
             'epoch': True,
             'cnn': True,
@@ -513,30 +523,26 @@ class Trainer:
             'skip': True,
             'activator': True
         })
-
-        return [self.case_cnn, self.case_rnn, self.case_skip, self.case_activation, self.case_epoch] # Adjust this to change the order in which parameters are tuned
+        return [self.case_cnn, self.case_rnn, self.case_skip, self.case_activation] # Adjust this to change the order in which parameters are tuned
     
     def AENet_spaces(self):
         print('Creating AENet_spaces')
-        self.case_kernel = hp.uniform('kernel', 1, self.args.hyperkernel)
-        self.case_epoch = hp.uniform('epoch', 1, self.args.hyperepoch)
-        self.case_cnn = hp.uniform('cnn', 1, self.args.hypercnn)
-
         self.params.update({
             'epoch': True,
             'cnn': True,
             'kernel': True
         })
-
         return [self.case_cnn, self.case_kernel, self.case_epoch] # Adjust this to change the order in which parameters are tuned
 
     def AELST_spaces(self):
-        self.case_kernel = hp.uniform('kernel', 1, self.args.hyperkernel)
         cases = [self.case_kernel]
-
         self.params.update({'kernel': True})
         cases.extend(self.standard_spaces())
         return cases
+
+    def TAE_spaces(self):
+        return [self.case_epoch]
+
 
     ################
     # END OF CLASS #
