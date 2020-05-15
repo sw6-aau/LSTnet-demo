@@ -509,12 +509,13 @@ class Trainer:
     def standard_spaces(self):
         print('Creating standard_spaces')
         self.params.update({
+            'epoch': True,
             'cnn': True,
             'rnn': True,
             'skip': True,
             'activator': True
         })
-        return [self.case_cnn, self.case_rnn, self.case_skip, self.case_activation] # Adjust this to change the order in which parameters are tuned
+        return [self.case_cnn, self.case_rnn, self.case_skip, self.case_activation, self.case_epoch] # Adjust this to change the order in which parameters are tuned
     
     def AENet_spaces(self):
         print('Creating AENet_spaces')
