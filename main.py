@@ -465,7 +465,7 @@ class Trainer:
 
     # Add your model here if the only parameter it needs tuned is cnn size
     def input_cnn(self):
-        if self.args.model == 'AENet1D' or self.args.model == 'AENet2D' or self.args.model == 'TAENet2D':
+        if self.args.model == 'AENet1D' or self.args.model == 'AENet2D':
             return True
         else: return False
 
