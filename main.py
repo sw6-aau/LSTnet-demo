@@ -310,6 +310,7 @@ class Trainer:
         self.parser.add_argument('--hyperskip', type=int, default=2)
         self.parser.add_argument('--hyperkernel', type=int, default=2)
         self.parser.add_argument('--kernel', type=int, default=4)
+        self.parser.add_argument('--results', type=str, default='hyperresults.csv')
 
 
     ##########################
@@ -392,7 +393,7 @@ class Trainer:
     # Prints results of each parameter at the end of tuning
     # If you add new parameters, remember to update this
     def print_results(self):
-        with open('hyperresults.csv', 'w', newline='') as f:
+        with open(self.args.results, 'w', newline='') as f:
             filewriter = csv.writer(f)
             filewriter.writerow(['Parameter', 'Best', 'RSE'])
             print('Model: ' + self.args.model)
