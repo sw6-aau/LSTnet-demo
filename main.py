@@ -137,13 +137,6 @@ class Trainer:
             model = torch.load(f)
         test_acc, test_rae, test_corr  = self.evaluate(self.Data, test, self.Data.test[1], model, self.evaluateL2, self.evaluateL1, self.args.batch_size);
         print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
-
-        ''' This shit is meant for saving the absolute best model, but doesn't quite work for reasons I cannot fathom
-        if test_acc < self.absolute_best:
-            with open(self.args.bestsave, 'wb+') as f:
-                torch.save(model, f)
-            self.absolute_best = test_acc
-        '''
         
         return {'loss': test_acc, 'status': STATUS_OK}
 
@@ -316,6 +309,7 @@ class Trainer:
         self.parser.add_argument('--hyperrnn', type=int, default=2)
         self.parser.add_argument('--hyperskip', type=int, default=2)
         self.parser.add_argument('--hyperkernel', type=int, default=2)
+        self.parser.add_argument('--kernel', type=int, default=4)
 
 
     ##########################
@@ -332,7 +326,7 @@ class Trainer:
         self.skip = self.args.hidSkip
         self.activation = self.args.output_fun
         self.lr = self.args.lr
-        self.kernel = 4
+        self.kernel = self.args.kernel
 
     def parameter_dict(self):
         self.params = {
@@ -514,7 +508,6 @@ class Trainer:
     def standard_spaces(self):
         print('Creating standard_spaces')
         self.params.update({
-            'epoch': True,
             'cnn': True,
             'rnn': True,
             'skip': True,
@@ -533,12 +526,17 @@ class Trainer:
 
     def AELST_spaces(self):
         cases = [self.case_kernel]
-        self.params.update({'kernel': True})
+        self.params.update({
+            'epoch': True,
+            'kernel': True
+        })
         cases.extend(self.standard_spaces())
+        cases.append(self.case_epoch)
         return cases
 
     def TAE_spaces(self):
-        return [self.case_epoch]
+        self.params.update({'cnn': True})
+        return [self.case_cnn]
 
 
     ################
