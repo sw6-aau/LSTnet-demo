@@ -6,13 +6,13 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LSTNet
+from models import LST
 import numpy as np
 import importlib
 import numpy
 import sys
 
-from utils_predict import *
+from utils import *
 import Optim
 
 
@@ -40,6 +40,7 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
         total_loss += evaluateL2(output * scale, Y * scale).data
         total_loss_l1 += evaluateL1(output * scale, Y * scale).data
         n_samples += (output.size(0) * data.m);
+        
     rse = math.sqrt(total_loss / n_samples)/data.rse
     rae = (total_loss_l1/n_samples)/data.rae
     # Calculates correlation
@@ -57,7 +58,7 @@ def evaluate(data, X, Y, model, evaluateL2, evaluateL1, batch_size):
 parser = argparse.ArgumentParser(description='PyTorch Time series forecasting')
 parser.add_argument('--data', type=str, required=True,
                     help='location of the data file')
-parser.add_argument('--model', type=str, default='LSTNet',
+parser.add_argument('--model', type=str, default='LST',
                     help='')
 parser.add_argument('--hidCNN', type=int, default=100,
                     help='number of CNN hidden units')
@@ -106,10 +107,12 @@ if torch.cuda.is_available():
     else:
         torch.cuda.manual_seed(args.seed)
 
-Data = Data_utility(args.data, 0.6, 0.2, args.cuda, args.horizon, args.window, args.normalize)
+Data = Data_utility(args.data, 0.1, 0.1, args.cuda, args.horizon, args.window, args.normalize)
 print(Data.rse)
 
-model = eval(args.model).Model(args, Data)
+#model = eval(args.model).Model(args, Data, args.hidCNN, args.hidRNN, args.hidSkip, args.output_fun)
+with open(args.save, 'rb+') as f:
+    model = (torch.load(f))
 
 if args.cuda:
     model.cuda()
@@ -136,8 +139,6 @@ optim = Optim.Optim(
 # Load the best saved model.
 # Have changed the train- and validation to 0, so it testes on all the data
 
-with open(args.save, 'wb+') as f:
-    torch.load(model, f)
 test_acc, test_rae, test_corr, prediction_tensor  = evaluate(Data, Data.test[0], Data.test[1], model, evaluateL2, evaluateL1, args.batch_size)
 print ("test rse {:5.4f} | test rae {:5.4f} | test corr {:5.4f}".format(test_acc, test_rae, test_corr))
 numpy.set_printoptions(threshold=sys.maxsize)   # Makes it print the whole numpy array otherwise it will only print the start and end

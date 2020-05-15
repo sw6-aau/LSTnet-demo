@@ -36,7 +36,6 @@ class Model(nn.Module):
         if (activation == 'relu'):
             self.output = F.relu;
 
-
     def forward(self, x):
         batch_size = x.size(0);
         
