@@ -470,7 +470,7 @@ class Trainer:
         else: return False
 
     def if_AELST(self):
-        if self.args.model == 'AELST':
+        if self.args.model == 'AELST1D':
             return True
         else: return False
 
