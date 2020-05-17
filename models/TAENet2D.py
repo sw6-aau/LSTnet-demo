@@ -32,15 +32,17 @@ class Model(nn.Module):
 
         #self.pool = nn.MaxPool2d(2)
         
+        self.encode = nn.Sequential(
+            nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)),
+            nn.Conv2d(self.hidC, 25, kernel_size = (self.Ck, 1)),
+            nn.Conv2d(25, 12, kernel_size = (self.Ck, 1))
+        )
 
-        self.encode1 = nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)); 
-        self.encode2 = nn.Conv2d(self.hidC, 25, kernel_size = (self.Ck, 1)); 
-        self.encode3 = nn.Conv2d(25, 12, kernel_size = (self.Ck, 1));
-
-
-        self.decode3 = nn.ConvTranspose2d(12, 25, (self.Ck, 1))
-        self.decode2 = nn.ConvTranspose2d(25, self.hidC, (self.Ck, 1))
-        self.decode1 = nn.ConvTranspose2d(self.hidC, 1, (self.Ck, self.m))
+        self.decode = nn.Sequential(
+            nn.ConvTranspose2d(12, 25, (self.Ck, 1)),
+            nn.ConvTranspose2d(25, self.hidC, (self.Ck, 1)),
+            nn.ConvTranspose2d(self.hidC, 1, (self.Ck, self.m))
+        )
 
         #self.encoder = nn.Sequential(
         #    nn.Conv2d(1, 16, 3, stride=3, padding=1),  # b, 16, 10, 10
@@ -66,13 +68,10 @@ class Model(nn.Module):
         ae = x.view(-1, 1, self.P, self.m)
 
         # CNN Autoencoder (3 layer)
-        ae = self.encode1(ae)
-        ae = self.encode2(ae)
-        ae = self.encode3(ae)
-        ae = self.decode3(ae)
-        ae = self.decode2(ae)
-        ae = self.decode1(ae)
+        ae = self.encode(ae)
+        ae = self.decode(ae)
         ae_hw = torch.squeeze(ae, 1);
+        print(ae.shape)
         temp = ae_hw.contiguous()
         #ae = self.dropout(ae);
         return temp[:,-1,:];
