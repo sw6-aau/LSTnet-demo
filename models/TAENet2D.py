@@ -31,17 +31,17 @@ class Model(nn.Module):
         #self.pool = nn.MaxPool2d(1, self.pooling_factor)
 
         #self.pool = nn.MaxPool2d(2)
-        
+        padding = 0
         self.encode = nn.Sequential(
-            nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)),
-            nn.Conv2d(self.hidC, 25, kernel_size = (self.Ck, 1)),
-            nn.Conv2d(25, 12, kernel_size = (self.Ck, 1))
+            nn.Conv2d(1, 64, kernel_size = (self.Ck, self.m), padding = padding),
+            nn.Conv2d(64, 32, kernel_size = (self.Ck, 1), padding = padding),
+            nn.Conv2d(32, 16, kernel_size = (self.Ck, 1), padding = padding)
         )
 
         self.decode = nn.Sequential(
-            nn.ConvTranspose2d(12, 25, (self.Ck, 1)),
-            nn.ConvTranspose2d(25, self.hidC, (self.Ck, 1)),
-            nn.ConvTranspose2d(self.hidC, 1, (self.Ck, self.m))
+            nn.ConvTranspose2d(16, 32, (self.Ck, 1), padding = padding),
+            nn.ConvTranspose2d(32, 64, (self.Ck, 1), padding = padding),
+            nn.ConvTranspose2d(64, 1, (self.Ck, self.m), padding = padding)
         )
 
         #self.encoder = nn.Sequential(
@@ -71,7 +71,6 @@ class Model(nn.Module):
         ae = self.encode(ae)
         ae = self.decode(ae)
         ae_hw = torch.squeeze(ae, 1);
-        print(ae.shape)
         temp = ae_hw.contiguous()
         #ae = self.dropout(ae);
         return temp[:,-1,:];

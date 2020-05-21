@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms as transforms
-from models import LSTNet, AELST1D, AELST2D, AENet1D, AENet2D, TAENet2D, AECLST
+from models import LSTNet, AELST1D, AELST2D, TAELST2D, AENet1D, AENet2D, TAENet2D, AECLST
 import numpy as np;
 import importlib
 
@@ -80,7 +80,7 @@ class Trainer:
 
     # Adds a gausian noise matrix to the matrix it takes as input
     def add_noise(self, data):
-        noise_factor = 0.5
+        noise_factor = 0.05
         data = data.data.numpy()     
         data = data + noise_factor * np.random.normal(loc=0.0, scale=1.0, size=data.shape)  
         data = np.clip(data, 0., 1.)
