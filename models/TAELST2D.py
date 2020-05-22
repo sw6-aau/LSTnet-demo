@@ -26,16 +26,18 @@ class Model(nn.Module):
         
         #self.decode = nn.ConvTranspose2d(self.hidC, 1, (self.deconv_height, self.m))
 
+        padding = 1
+        multiplier = 2
         self.encode = nn.Sequential(
-            nn.Conv2d(1, self.hidC, kernel_size = (self.Ck, self.m)),
-            nn.Conv2d(self.hidC, 25, kernel_size = (self.Ck, 1)),
-            nn.Conv2d(25, 12, kernel_size = (self.Ck, 1))
+            nn.Conv2d(1, 64 * multiplier, kernel_size = (self.Ck, self.m), padding = padding),
+            nn.Conv2d(64 * multiplier, 32 * multiplier, kernel_size = (self.Ck, 1), padding = padding),
+            nn.Conv2d(32 * multiplier, 16 * multiplier, kernel_size = (self.Ck, 1), padding = padding)
         )
 
         self.decode = nn.Sequential(
-            nn.ConvTranspose2d(12, 25, (self.Ck, 1)),
-            nn.ConvTranspose2d(25, self.hidC, (self.Ck, 1)),
-            nn.ConvTranspose2d(self.hidC, 1, (self.Ck, self.m))
+            nn.ConvTranspose2d(16 * multiplier, 32 * multiplier, (self.Ck, 1), padding = padding),
+            nn.ConvTranspose2d(32 * multiplier, 64 * multiplier, (self.Ck, 1), padding = padding),
+            nn.ConvTranspose2d(64 * multiplier, 1, (self.Ck, self.m), padding = padding)
         )
 
         self.change_hidden = nn.Linear(in_features=self.m, out_features=self.hidC)

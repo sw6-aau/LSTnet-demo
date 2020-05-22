@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # OG LSTnet model
-# Do not fucking change
+# Do not change
 # Make a new python file instead
 class Model(nn.Module):
     def __init__(self, args, data, cnn, rnn, skip, activation):
@@ -46,30 +46,30 @@ class Model(nn.Module):
         c = torch.squeeze(c, 3)
         
         # RNN 
-        r = c.permute(2, 0, 1).contiguous()
+        r = c.permute(2, 0, 1).contiguous() # torch.Size([163, 128, 50])
         _, r = self.GRU1(r);
         r = self.dropout(torch.squeeze(r,0))
 
         #skip-rnn
         
         if (self.skip > 0):
-            s = c[:,:, int(-self.pt * self.skip):].contiguous()
-            s = s.view(batch_size, self.hidC, self.pt, self.skip)
+            s = c[:,:, int(-self.pt * self.skip):].contiguous() #torch.Size([128, 50, 144])
+            s = s.view(batch_size, self.hidC, self.pt, self.skip) #torch.Size([128, 50, 6, 24])
             s = s.permute(2,0,3,1).contiguous()
-            s = s.view(self.pt, batch_size * self.skip, self.hidC)
-            _, s = self.GRUskip(s)
-            s = s.view(batch_size, self.skip * self.hidS)
+            s = s.view(self.pt, batch_size * self.skip, self.hidC) # torch.Size([6, 3072, 50])
+            _, s = self.GRUskip(s) #s: torch.Size([1, 3072, 5]) Tensor containing the the hidden state for t = seq_len, that is the last predicted day of the week
+            s = s.view(batch_size, self.skip * self.hidS) # torch.Size([128, 120]) Splits the predictions of each day, to each 128 input again
             s = self.dropout(s)
-            r = torch.cat((r,s),1)
+            r = torch.cat((r,s),1) #r:torch.Size([128, 170]), s: torch.Size([128, 50]), r-after: torch.Size([128, 170])
         
-        res = self.linear1(r);
+        res = self.linear1(r); # torch.Size([128, 8]) Changes second dimension to 8 through a linear layer.
         
         #highway
         if (self.hw > 0):
-            z = x[:, -self.hw:, :];
-            z = z.permute(0,2,1).contiguous().view(-1, self.hw);
-            z = self.highway(z);
-            z = z.view(-1,self.m);
+            z = x[:, -self.hw:, :]; # torch.Size([128, 24, 8])
+            z = z.permute(0,2,1).contiguous().view(-1, self.hw); # torch.Size([1024, 24])
+            z = self.highway(z);    # 24 -> 1
+            z = z.view(-1,self.m); # torch.Size([128, 8])
             res = res + z;
             
         if (self.output):

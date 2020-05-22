@@ -31,17 +31,18 @@ class Model(nn.Module):
         #self.pool = nn.MaxPool2d(1, self.pooling_factor)
 
         #self.pool = nn.MaxPool2d(2)
-        padding = 0
+        padding = 1
+        multiplier = 2
         self.encode = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size = (self.Ck, self.m), padding = padding),
-            nn.Conv2d(64, 32, kernel_size = (self.Ck, 1), padding = padding),
-            nn.Conv2d(32, 16, kernel_size = (self.Ck, 1), padding = padding)
+            nn.Conv2d(1, 64 * multiplier, kernel_size = (self.Ck, self.m), padding = padding),
+            nn.Conv2d(64 * multiplier, 32 * multiplier, kernel_size = (self.Ck, 1), padding = padding),
+            nn.Conv2d(32 * multiplier, 16 * multiplier, kernel_size = (self.Ck, 1), padding = padding)
         )
 
         self.decode = nn.Sequential(
-            nn.ConvTranspose2d(16, 32, (self.Ck, 1), padding = padding),
-            nn.ConvTranspose2d(32, 64, (self.Ck, 1), padding = padding),
-            nn.ConvTranspose2d(64, 1, (self.Ck, self.m), padding = padding)
+            nn.ConvTranspose2d(16 * multiplier, 32 * multiplier, (self.Ck, 1), padding = padding),
+            nn.ConvTranspose2d(32 * multiplier, 64 * multiplier, (self.Ck, 1), padding = padding),
+            nn.ConvTranspose2d(64 * multiplier, 1, (self.Ck, self.m), padding = padding)
         )
 
         #self.encoder = nn.Sequential(
